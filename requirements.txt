@@ -12,3 +12,8 @@ tqdm==4.67.1            # progress over multi-hour, multi-session collection
 pandas==2.3.3           # Stage 2 shaping
 pyarrow==25.0.1         # Parquet writer. Stage 2 CANNOT run without this.
 matplotlib==3.10.8      # gate report: wait-time histogram, unreviewed-fraction curve
+
+# Phase 2
+scikit-learn==1.9.1     # GroupKFold, average_precision_score
+lifelines==0.30.3       # Kaplan-Meier with CI bands (EDA)
+pytest==8.4.1           # tests/
