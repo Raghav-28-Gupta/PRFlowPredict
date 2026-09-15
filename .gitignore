@@ -1,0 +1,17 @@
+# Data is the expensive artifact but does not belong in git: raw is verbatim GraphQL
+# bytes (~GBs after full collection) and processed is regenerable from raw via parse.py.
+# The cohort selection IS tracked -- it is small, and the seeded draw is only
+# reproducible if the candidate pool is preserved.
+data/raw/
+data/processed/
+data/*.log
+!data/cohort/
+
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# scratch
+*.tmp
+*__resume_backup/

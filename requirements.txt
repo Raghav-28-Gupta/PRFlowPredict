@@ -1,0 +1,14 @@
+# PRFlowPredict — Phase 1 (collection) dependencies.
+# Python 3.13.1 on Windows 11.
+#
+# Phase 1 only. lightgbm / xgboost / scikit-survival / shap / streamlit belong to
+# Phases 4-7 and are deliberately NOT pinned here yet — see the blueprint's §6.
+
+requests==2.32.5        # Stage 1 transport. Deliberately NOT `gh api graphql`:
+                        # we need raw response bytes and the x-ratelimit-* /
+                        # Retry-After / x-github-request-id headers.
+tenacity==9.1.2         # jittered exponential backoff for secondary rate limits
+tqdm==4.67.1            # progress over multi-hour, multi-session collection
+pandas==2.3.3           # Stage 2 shaping
+pyarrow==25.0.1         # Parquet writer. Stage 2 CANNOT run without this.
+matplotlib==3.10.8      # gate report: wait-time histogram, unreviewed-fraction curve

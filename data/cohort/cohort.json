@@ -1,0 +1,1050 @@
+{
+  "seed": 20260912,
+  "per_cell": 5,
+  "languages": [
+    "Python",
+    "TypeScript",
+    "Go"
+  ],
+  "star_tiers": [
+    [
+      200,
+      800
+    ],
+    [
+      800,
+      3000
+    ],
+    [
+      3000,
+      15000
+    ]
+  ],
+  "pushed_since": "2025-09-01",
+  "min_window_prs": 200,
+  "window": [
+    "2024-01-01",
+    "2026-06-30"
+  ],
+  "n_candidates_pooled": 1800,
+  "n_selected": 45,
+  "selected": [
+    {
+      "repo": "mostly-ai/mostlyai",
+      "cell": "Python:200-800",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 799,
+      "n_prs_all_time": 697,
+      "n_prs_in_window": 691,
+      "n_assignable_users": null,
+      "created_at": "2023-12-22T12:00:11Z",
+      "pushed_at": "2026-09-07T06:51:55Z"
+    },
+    {
+      "repo": "mmschlk/shapiq",
+      "cell": "Python:200-800",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 782,
+      "n_prs_all_time": 332,
+      "n_prs_in_window": 291,
+      "n_assignable_users": null,
+      "created_at": "2023-10-17T14:44:07Z",
+      "pushed_at": "2026-09-01T09:12:42Z"
+    },
+    {
+      "repo": "pytest-dev/pytest-html",
+      "cell": "Python:200-800",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 778,
+      "n_prs_all_time": 595,
+      "n_prs_in_window": 200,
+      "n_assignable_users": null,
+      "created_at": "2015-04-14T19:22:42Z",
+      "pushed_at": "2026-09-07T16:11:40Z"
+    },
+    {
+      "repo": "dcs-liberation/dcs_liberation",
+      "cell": "Python:200-800",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 798,
+      "n_prs_all_time": 1517,
+      "n_prs_in_window": 243,
+      "n_assignable_users": null,
+      "created_at": "2018-08-08T21:40:53Z",
+      "pushed_at": "2026-09-11T12:48:11Z"
+    },
+    {
+      "repo": "Scottcjn/Rustchain",
+      "cell": "Python:200-800",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 788,
+      "n_prs_all_time": 5712,
+      "n_prs_in_window": 5262,
+      "n_assignable_users": null,
+      "created_at": "2025-04-21T15:12:18Z",
+      "pushed_at": "2026-09-11T14:43:47Z"
+    },
+    {
+      "repo": "radixark/miles",
+      "cell": "Python:800-3000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2811,
+      "n_prs_all_time": 3010,
+      "n_prs_in_window": 1397,
+      "n_assignable_users": null,
+      "created_at": "2025-10-09T06:04:57Z",
+      "pushed_at": "2026-09-12T20:03:38Z"
+    },
+    {
+      "repo": "jhj0517/Whisper-WebUI",
+      "cell": "Python:800-3000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2876,
+      "n_prs_all_time": 294,
+      "n_prs_in_window": 257,
+      "n_assignable_users": null,
+      "created_at": "2023-03-02T13:42:01Z",
+      "pushed_at": "2025-12-29T07:53:10Z"
+    },
+    {
+      "repo": "michaelfeil/infinity",
+      "cell": "Python:800-3000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2937,
+      "n_prs_all_time": 317,
+      "n_prs_in_window": 281,
+      "n_assignable_users": null,
+      "created_at": "2023-10-11T17:53:38Z",
+      "pushed_at": "2026-03-24T03:59:47Z"
+    },
+    {
+      "repo": "huggingface/nanotron",
+      "cell": "Python:800-3000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2820,
+      "n_prs_all_time": 294,
+      "n_prs_in_window": 271,
+      "n_assignable_users": null,
+      "created_at": "2023-09-11T14:40:28Z",
+      "pushed_at": "2026-05-26T10:32:37Z"
+    },
+    {
+      "repo": "pytorch/audio",
+      "cell": "Python:800-3000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2935,
+      "n_prs_all_time": 3206,
+      "n_prs_in_window": 357,
+      "n_assignable_users": null,
+      "created_at": "2017-05-05T00:38:05Z",
+      "pushed_at": "2026-09-12T11:37:13Z"
+    },
+    {
+      "repo": "icloud-photos-downloader/icloud_photos_downloader",
+      "cell": "Python:3000-15000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 12233,
+      "n_prs_all_time": 575,
+      "n_prs_in_window": 240,
+      "n_assignable_users": null,
+      "created_at": "2016-05-13T21:47:30Z",
+      "pushed_at": "2026-05-30T21:47:25Z"
+    },
+    {
+      "repo": "ShishirPatil/gorilla",
+      "cell": "Python:3000-15000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 13021,
+      "n_prs_all_time": 847,
+      "n_prs_in_window": 785,
+      "n_assignable_users": null,
+      "created_at": "2023-05-19T00:46:45Z",
+      "pushed_at": "2026-04-13T03:19:45Z"
+    },
+    {
+      "repo": "ostris/ai-toolkit",
+      "cell": "Python:3000-15000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 11974,
+      "n_prs_all_time": 346,
+      "n_prs_in_window": 289,
+      "n_assignable_users": null,
+      "created_at": "2023-07-05T18:45:11Z",
+      "pushed_at": "2026-09-12T20:28:08Z"
+    },
+    {
+      "repo": "dbcli/mycli",
+      "cell": "Python:3000-15000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 11976,
+      "n_prs_all_time": 1476,
+      "n_prs_in_window": 728,
+      "n_assignable_users": null,
+      "created_at": "2015-04-05T22:39:49Z",
+      "pushed_at": "2026-09-12T20:43:13Z"
+    },
+    {
+      "repo": "microsoft/promptflow",
+      "cell": "Python:3000-15000",
+      "language_stratum": "Python",
+      "language_dominant": "Python",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 11239,
+      "n_prs_all_time": 3172,
+      "n_prs_in_window": 1869,
+      "n_assignable_users": null,
+      "created_at": "2023-06-30T06:03:06Z",
+      "pushed_at": "2026-08-26T22:27:46Z"
+    },
+    {
+      "repo": "metriport/metriport",
+      "cell": "TypeScript:200-800",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 778,
+      "n_prs_all_time": 4698,
+      "n_prs_in_window": 3482,
+      "n_assignable_users": null,
+      "created_at": "2022-12-21T05:07:17Z",
+      "pushed_at": "2026-08-28T00:46:05Z"
+    },
+    {
+      "repo": "bastani-inc/atomic",
+      "cell": "TypeScript:200-800",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 793,
+      "n_prs_all_time": 2353,
+      "n_prs_in_window": 1236,
+      "n_assignable_users": null,
+      "created_at": "2025-10-23T04:24:21Z",
+      "pushed_at": "2026-09-12T20:12:35Z"
+    },
+    {
+      "repo": "vscode-kubernetes-tools/vscode-kubernetes-tools",
+      "cell": "TypeScript:200-800",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 771,
+      "n_prs_all_time": 1221,
+      "n_prs_in_window": 616,
+      "n_assignable_users": null,
+      "created_at": "2017-07-25T04:12:07Z",
+      "pushed_at": "2026-09-04T12:35:13Z"
+    },
+    {
+      "repo": "lexmin0412/dify-app-hub",
+      "cell": "TypeScript:200-800",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 785,
+      "n_prs_all_time": 323,
+      "n_prs_in_window": 318,
+      "n_assignable_users": null,
+      "created_at": "2024-11-28T03:38:10Z",
+      "pushed_at": "2026-09-08T01:58:40Z"
+    },
+    {
+      "repo": "antvis/GPT-Vis",
+      "cell": "TypeScript:200-800",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 781,
+      "n_prs_all_time": 318,
+      "n_prs_in_window": 309,
+      "n_assignable_users": null,
+      "created_at": "2023-11-13T15:07:53Z",
+      "pushed_at": "2026-09-09T07:41:10Z"
+    },
+    {
+      "repo": "pingcap/autoflow",
+      "cell": "TypeScript:800-3000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2969,
+      "n_prs_all_time": 465,
+      "n_prs_in_window": 464,
+      "n_assignable_users": null,
+      "created_at": "2024-02-05T06:53:14Z",
+      "pushed_at": "2026-04-27T13:55:14Z"
+    },
+    {
+      "repo": "lnreader/lnreader",
+      "cell": "TypeScript:800-3000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2831,
+      "n_prs_all_time": 650,
+      "n_prs_in_window": 334,
+      "n_assignable_users": null,
+      "created_at": "2020-10-09T02:28:34Z",
+      "pushed_at": "2026-09-12T13:04:38Z"
+    },
+    {
+      "repo": "solana-foundation/solana-web3.js",
+      "cell": "TypeScript:800-3000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2756,
+      "n_prs_all_time": 3366,
+      "n_prs_in_window": 1614,
+      "n_assignable_users": null,
+      "created_at": "2018-08-22T20:30:39Z",
+      "pushed_at": "2026-09-12T20:25:39Z"
+    },
+    {
+      "repo": "nteract/semiotic",
+      "cell": "TypeScript:800-3000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2705,
+      "n_prs_all_time": 773,
+      "n_prs_in_window": 393,
+      "n_assignable_users": null,
+      "created_at": "2017-03-16T17:46:24Z",
+      "pushed_at": "2026-09-12T20:41:48Z"
+    },
+    {
+      "repo": "projen/projen",
+      "cell": "TypeScript:800-3000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2953,
+      "n_prs_all_time": 3501,
+      "n_prs_in_window": 1188,
+      "n_assignable_users": null,
+      "created_at": "2020-05-11T05:07:24Z",
+      "pushed_at": "2026-09-11T01:55:54Z"
+    },
+    {
+      "repo": "didi/LogicFlow",
+      "cell": "TypeScript:3000-15000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 11689,
+      "n_prs_all_time": 841,
+      "n_prs_in_window": 290,
+      "n_assignable_users": null,
+      "created_at": "2020-12-24T07:55:38Z",
+      "pushed_at": "2026-07-30T13:06:23Z"
+    },
+    {
+      "repo": "misskey-dev/misskey",
+      "cell": "TypeScript:3000-15000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 11321,
+      "n_prs_all_time": 9191,
+      "n_prs_in_window": 2566,
+      "n_assignable_users": null,
+      "created_at": "2016-12-25T13:16:07Z",
+      "pushed_at": "2026-09-12T09:36:11Z"
+    },
+    {
+      "repo": "bia-pain-bache/BPB-Worker-Panel",
+      "cell": "TypeScript:3000-15000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 13414,
+      "n_prs_all_time": 342,
+      "n_prs_in_window": 331,
+      "n_assignable_users": null,
+      "created_at": "2024-01-19T17:58:28Z",
+      "pushed_at": "2026-07-20T13:07:08Z"
+    },
+    {
+      "repo": "Zettlr/Zettlr",
+      "cell": "TypeScript:3000-15000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "JavaScript",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 13493,
+      "n_prs_all_time": 2377,
+      "n_prs_in_window": 676,
+      "n_assignable_users": null,
+      "created_at": "2017-12-26T18:34:19Z",
+      "pushed_at": "2026-09-11T15:19:06Z"
+    },
+    {
+      "repo": "inversify/InversifyJS",
+      "cell": "TypeScript:3000-15000",
+      "language_stratum": "TypeScript",
+      "language_dominant": "TypeScript",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 12067,
+      "n_prs_all_time": 933,
+      "n_prs_in_window": 274,
+      "n_assignable_users": null,
+      "created_at": "2015-04-07T21:04:38Z",
+      "pushed_at": "2025-11-19T13:18:33Z"
+    },
+    {
+      "repo": "kubernetes-sigs/gateway-api-inference-extension",
+      "cell": "Go:200-800",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 767,
+      "n_prs_all_time": 2033,
+      "n_prs_in_window": 1977,
+      "n_assignable_users": null,
+      "created_at": "2024-08-28T20:04:10Z",
+      "pushed_at": "2026-09-11T18:08:43Z"
+    },
+    {
+      "repo": "VersusControl/versus-incident",
+      "cell": "Go:200-800",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 770,
+      "n_prs_all_time": 290,
+      "n_prs_in_window": 204,
+      "n_assignable_users": null,
+      "created_at": "2025-02-04T15:20:06Z",
+      "pushed_at": "2026-09-11T09:26:25Z"
+    },
+    {
+      "repo": "charmbracelet/catwalk",
+      "cell": "Go:200-800",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 799,
+      "n_prs_all_time": 503,
+      "n_prs_in_window": 321,
+      "n_assignable_users": null,
+      "created_at": "2025-06-25T09:42:36Z",
+      "pushed_at": "2026-09-12T16:13:24Z"
+    },
+    {
+      "repo": "kdlbs/kandev",
+      "cell": "Go:200-800",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 783,
+      "n_prs_all_time": 3310,
+      "n_prs_in_window": 1434,
+      "n_assignable_users": null,
+      "created_at": "2026-01-09T23:26:53Z",
+      "pushed_at": "2026-09-12T20:51:23Z"
+    },
+    {
+      "repo": "argoproj-labs/gitops-promoter",
+      "cell": "Go:200-800",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "200-800",
+      "stargazer_count_at_selection": 756,
+      "n_prs_all_time": 1791,
+      "n_prs_in_window": 1511,
+      "n_assignable_users": null,
+      "created_at": "2024-04-09T14:10:53Z",
+      "pushed_at": "2026-09-12T12:37:38Z"
+    },
+    {
+      "repo": "thought-machine/please",
+      "cell": "Go:800-3000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2612,
+      "n_prs_all_time": 2698,
+      "n_prs_in_window": 414,
+      "n_assignable_users": null,
+      "created_at": "2016-02-02T11:27:05Z",
+      "pushed_at": "2026-09-09T16:38:45Z"
+    },
+    {
+      "repo": "yunionio/cloudpods",
+      "cell": "Go:800-3000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2943,
+      "n_prs_all_time": 23617,
+      "n_prs_in_window": 5236,
+      "n_assignable_users": null,
+      "created_at": "2018-07-27T07:15:33Z",
+      "pushed_at": "2026-09-11T13:31:50Z"
+    },
+    {
+      "repo": "stripe/stripe-go",
+      "cell": "Go:800-3000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2636,
+      "n_prs_all_time": 1913,
+      "n_prs_in_window": 521,
+      "n_assignable_users": null,
+      "created_at": "2014-06-05T23:38:14Z",
+      "pushed_at": "2026-09-12T05:42:37Z"
+    },
+    {
+      "repo": "rabbitstack/fibratus",
+      "cell": "Go:800-3000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2541,
+      "n_prs_all_time": 622,
+      "n_prs_in_window": 413,
+      "n_assignable_users": null,
+      "created_at": "2016-03-25T11:28:46Z",
+      "pushed_at": "2026-09-12T12:37:54Z"
+    },
+    {
+      "repo": "rilldata/rill",
+      "cell": "Go:800-3000",
+      "language_stratum": "Go",
+      "language_dominant": "TypeScript",
+      "star_tier": "800-3000",
+      "stargazer_count_at_selection": 2877,
+      "n_prs_all_time": 7766,
+      "n_prs_in_window": 5048,
+      "n_assignable_users": null,
+      "created_at": "2021-12-09T03:10:31Z",
+      "pushed_at": "2026-09-11T21:07:54Z"
+    },
+    {
+      "repo": "kubernetes/autoscaler",
+      "cell": "Go:3000-15000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 8964,
+      "n_prs_all_time": 7368,
+      "n_prs_in_window": 2746,
+      "n_assignable_users": null,
+      "created_at": "2017-04-12T00:03:40Z",
+      "pushed_at": "2026-09-11T18:33:43Z"
+    },
+    {
+      "repo": "benbjohnson/litestream",
+      "cell": "Go:3000-15000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 14368,
+      "n_prs_all_time": 761,
+      "n_prs_in_window": 433,
+      "n_assignable_users": null,
+      "created_at": "2020-10-06T19:16:01Z",
+      "pushed_at": "2026-09-11T13:53:53Z"
+    },
+    {
+      "repo": "wader/fq",
+      "cell": "Go:3000-15000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 10595,
+      "n_prs_all_time": 1299,
+      "n_prs_in_window": 465,
+      "n_assignable_users": null,
+      "created_at": "2021-02-07T21:37:53Z",
+      "pushed_at": "2026-09-12T16:10:00Z"
+    },
+    {
+      "repo": "stakater/Reloader",
+      "cell": "Go:3000-15000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 10404,
+      "n_prs_all_time": 780,
+      "n_prs_in_window": 406,
+      "n_assignable_users": null,
+      "created_at": "2018-07-04T13:42:50Z",
+      "pushed_at": "2026-09-09T13:10:13Z"
+    },
+    {
+      "repo": "crowdsecurity/crowdsec",
+      "cell": "Go:3000-15000",
+      "language_stratum": "Go",
+      "language_dominant": "Go",
+      "star_tier": "3000-15000",
+      "stargazer_count_at_selection": 14825,
+      "n_prs_all_time": 3377,
+      "n_prs_in_window": 1376,
+      "n_assignable_users": null,
+      "created_at": "2020-05-15T09:38:05Z",
+      "pushed_at": "2026-09-12T07:28:21Z"
+    }
+  ],
+  "rejected": [
+    {
+      "repo": "ReflexioAI/claude-smart",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 133 < 200"
+    },
+    {
+      "repo": "facebookresearch/CodeGen",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 31 < 200"
+    },
+    {
+      "repo": "Rss3208/Visiomaster",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 1 < 200"
+    },
+    {
+      "repo": "lingbol088-spec/5.6-JAILBREAK-NERV-codex-instruct-5.6",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 1 < 200"
+    },
+    {
+      "repo": "qx-labs/agents-deep-research",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 14 < 200"
+    },
+    {
+      "repo": "yann-shi/Young",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 10 < 200"
+    },
+    {
+      "repo": "psy0rz/zfs_autobackup",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 38 < 200"
+    },
+    {
+      "repo": "TickDB/tickdb-unified-realtime-marketdata-api",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 0 < 200"
+    },
+    {
+      "repo": "DeepXiv/deepxiv_sdk",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 3 < 200"
+    },
+    {
+      "repo": "loonghao/photoshop-python-api",
+      "cell": "Python:200-800",
+      "reason": "in-window PRs 50 < 200"
+    },
+    {
+      "repo": "lihaoyun6/ComfyUI-FlashVSR_Ultra_Fast",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 9 < 200"
+    },
+    {
+      "repo": "postgrespro/pg_probackup",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 157 < 200"
+    },
+    {
+      "repo": "Zyrexnn/Cybermes",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 24 < 200"
+    },
+    {
+      "repo": "bioMate-AI/biomate-connector",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 16 < 200"
+    },
+    {
+      "repo": "ysharma3501/NovaSR",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 3 < 200"
+    },
+    {
+      "repo": "dbrattli/Expression",
+      "cell": "Python:200-800",
+      "reason": "in-window PRs 52 < 200"
+    },
+    {
+      "repo": "Wartybix/Constrict",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 0 < 200"
+    },
+    {
+      "repo": "jerryji1993/DNABERT",
+      "cell": "Python:200-800",
+      "reason": "all-time PRs 13 < 200"
+    },
+    {
+      "repo": "MaximeVandegar/Papers-in-100-Lines-of-Code",
+      "cell": "Python:800-3000",
+      "reason": "all-time PRs 13 < 200"
+    },
+    {
+      "repo": "gruns/furl",
+      "cell": "Python:800-3000",
+      "reason": "all-time PRs 71 < 200"
+    },
+    {
+      "repo": "nikopueringer/CorridorKey",
+      "cell": "Python:3000-15000",
+      "reason": "all-time PRs 153 < 200"
+    },
+    {
+      "repo": "SFTtech/openage",
+      "cell": "Python:3000-15000",
+      "reason": "in-window PRs 130 < 200"
+    },
+    {
+      "repo": "trpc/examples-next-prisma-starter",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 155 < 200"
+    },
+    {
+      "repo": "Yaozhuwa/easy-typing-obsidian",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 8 < 200"
+    },
+    {
+      "repo": "hangsman/claude-code-source",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 0 < 200"
+    },
+    {
+      "repo": "git-truck/git-truck",
+      "cell": "TypeScript:200-800",
+      "reason": "in-window PRs 178 < 200"
+    },
+    {
+      "repo": "jsgrrchg/NeverWrite",
+      "cell": "TypeScript:200-800",
+      "reason": "in-window PRs 180 < 200"
+    },
+    {
+      "repo": "answeryt/Jumping-Agent-platform",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 4 < 200"
+    },
+    {
+      "repo": "AIDotNet/auto-prompt",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 0 < 200"
+    },
+    {
+      "repo": "AFASSoftware/maquette",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 106 < 200"
+    },
+    {
+      "repo": "Ride-The-Lightning/RTL",
+      "cell": "TypeScript:200-800",
+      "reason": "in-window PRs 151 < 200"
+    },
+    {
+      "repo": "mifi/ezshare",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 91 < 200"
+    },
+    {
+      "repo": "material-extensions/material-icons-browser-extension",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 56 < 200"
+    },
+    {
+      "repo": "any-tdf/any-tdf",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 18 < 200"
+    },
+    {
+      "repo": "tight-studio/OpenBrand",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 7 < 200"
+    },
+    {
+      "repo": "KABBOUCHI/vue-tippy",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 51 < 200"
+    },
+    {
+      "repo": "only-cliches/Nano-SQL",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 103 < 200"
+    },
+    {
+      "repo": "ComponentDriven/componentdriven.org",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 51 < 200"
+    },
+    {
+      "repo": "4Catalyzer/found",
+      "cell": "TypeScript:200-800",
+      "reason": "in-window PRs 81 < 200"
+    },
+    {
+      "repo": "vim-denops/denops.vim",
+      "cell": "TypeScript:200-800",
+      "reason": "in-window PRs 122 < 200"
+    },
+    {
+      "repo": "trylinky/linky",
+      "cell": "TypeScript:200-800",
+      "reason": "all-time PRs 17 < 200"
+    },
+    {
+      "repo": "AlephAITech/WorkBuddyGuide",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 25 < 200"
+    },
+    {
+      "repo": "chibat/chrome-extension-typescript-starter",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 71 < 200"
+    },
+    {
+      "repo": "antfu/node-modules-inspector",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 134 < 200"
+    },
+    {
+      "repo": "EvanBacon/serve-sim",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 121 < 200"
+    },
+    {
+      "repo": "chauncygu/collection-claude-code-source-code",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 6 < 200"
+    },
+    {
+      "repo": "michaelshimeles/ralphy",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 115 < 200"
+    },
+    {
+      "repo": "davidmonterocrespo24/velxio",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 198 < 200"
+    },
+    {
+      "repo": "klembot/twinejs",
+      "cell": "TypeScript:800-3000",
+      "reason": "in-window PRs 109 < 200"
+    },
+    {
+      "repo": "zmxv/react-native-sound",
+      "cell": "TypeScript:800-3000",
+      "reason": "in-window PRs 9 < 200"
+    },
+    {
+      "repo": "dai-shi/react-tracked",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 165 < 200"
+    },
+    {
+      "repo": "sahibzada-allahyar/YC-Killer",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 14 < 200"
+    },
+    {
+      "repo": "tale/headplane",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 180 < 200"
+    },
+    {
+      "repo": "codercup/unibest",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 44 < 200"
+    },
+    {
+      "repo": "beilunyang/moemail",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 53 < 200"
+    },
+    {
+      "repo": "handsontable/hyperformula",
+      "cell": "TypeScript:800-3000",
+      "reason": "in-window PRs 186 < 200"
+    },
+    {
+      "repo": "M-cheng-web/web-tracing",
+      "cell": "TypeScript:800-3000",
+      "reason": "all-time PRs 21 < 200"
+    },
+    {
+      "repo": "mailgun/mailgun-go",
+      "cell": "Go:200-800",
+      "reason": "in-window PRs 148 < 200"
+    },
+    {
+      "repo": "ZhiYi-R/moon-bridge",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 78 < 200"
+    },
+    {
+      "repo": "buraksezer/consistent",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 15 < 200"
+    },
+    {
+      "repo": "EwenQuim/entropy",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 5 < 200"
+    },
+    {
+      "repo": "nanomsg/mangos",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 193 < 200"
+    },
+    {
+      "repo": "gojuno/minimock",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 121 < 200"
+    },
+    {
+      "repo": "harbur/captain",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 30 < 200"
+    },
+    {
+      "repo": "getplumber/plumber",
+      "cell": "Go:200-800",
+      "reason": "in-window PRs 143 < 200"
+    },
+    {
+      "repo": "guyfedwards/nom",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 99 < 200"
+    },
+    {
+      "repo": "TencentCloud/tencentcloud-sdk-go",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 177 < 200"
+    },
+    {
+      "repo": "Kamva/mgm",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 22 < 200"
+    },
+    {
+      "repo": "arl/gitmux",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 69 < 200"
+    },
+    {
+      "repo": "aaPanel/aaWAF",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 1 < 200"
+    },
+    {
+      "repo": "lesovsky/noisia",
+      "cell": "Go:200-800",
+      "reason": "all-time PRs 17 < 200"
+    },
+    {
+      "repo": "cucumber/godog",
+      "cell": "Go:800-3000",
+      "reason": "in-window PRs 122 < 200"
+    },
+    {
+      "repo": "liftbridge-io/liftbridge",
+      "cell": "Go:800-3000",
+      "reason": "in-window PRs 36 < 200"
+    },
+    {
+      "repo": "abhinavxd/libredesk",
+      "cell": "Go:800-3000",
+      "reason": "in-window PRs 175 < 200"
+    },
+    {
+      "repo": "robscott/kube-capacity",
+      "cell": "Go:800-3000",
+      "reason": "all-time PRs 129 < 200"
+    },
+    {
+      "repo": "bits-and-blooms/bloom",
+      "cell": "Go:800-3000",
+      "reason": "all-time PRs 64 < 200"
+    },
+    {
+      "repo": "italiaremote/awesome-italia-remote",
+      "cell": "Go:800-3000",
+      "reason": "in-window PRs 35 < 200"
+    },
+    {
+      "repo": "compozy/compozy",
+      "cell": "Go:800-3000",
+      "reason": "in-window PRs 199 < 200"
+    },
+    {
+      "repo": "justjanne/powerline-go",
+      "cell": "Go:800-3000",
+      "reason": "in-window PRs 22 < 200"
+    },
+    {
+      "repo": "marcopiovanello/yt-dlp-web-ui",
+      "cell": "Go:800-3000",
+      "reason": "all-time PRs 124 < 200"
+    },
+    {
+      "repo": "coreos/go-systemd",
+      "cell": "Go:800-3000",
+      "reason": "in-window PRs 63 < 200"
+    },
+    {
+      "repo": "gothinkster/golang-gin-realworld-example-app",
+      "cell": "Go:800-3000",
+      "reason": "all-time PRs 39 < 200"
+    },
+    {
+      "repo": "kubernetes/client-go",
+      "cell": "Go:3000-15000",
+      "reason": "all-time PRs 0 < 200"
+    },
+    {
+      "repo": "PuerkitoBio/goquery",
+      "cell": "Go:3000-15000",
+      "reason": "all-time PRs 198 < 200"
+    },
+    {
+      "repo": "maxence-charriere/go-app",
+      "cell": "Go:3000-15000",
+      "reason": "in-window PRs 87 < 200"
+    }
+  ],
+  "limitations": [
+    "Star tiers are defined by stars AT SELECTION TIME but PRs span 2024-2026; a repo at 3,100 stars today may have had 700 in 2024. GitHub exposes no historical star API, so this is unfixable. stargazerCount must never be used as a model feature.",
+    "Requiring recent activity and excluding archived repos is survivorship bias toward projects still alive; repos that died during the window -- plausibly the slowest reviewers -- are structurally excluded, biasing the is_slow base rate downward.",
+    "The minimum-PR-volume floor is a size criterion, not a review-behaviour criterion, but it is mildly correlated with review throughput."
+  ]
+}
