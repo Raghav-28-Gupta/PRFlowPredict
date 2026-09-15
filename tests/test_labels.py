@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 import labels
 from tests.conftest import h
 
@@ -56,6 +55,21 @@ def test_wait_beyond_censor_is_never_reviewed(label_toy):
     out = labels.label(prs, fe_).set_index("pr_id")
     assert out.loc["A", "never_reviewed_30d"] == True
     assert out.loc["A", "wait_h_censored"] == 720
+
+
+def test_d4_excludes_minimized_but_d3_counts_it(label_toy):
+    prs, streams = label_toy
+    extra = pd.DataFrame({
+        "pr_id": ["D"], "created_at": [h(3)], "published_at": [h(3)],
+        "author_login": ["carol"], "author_typename": ["User"],
+        "author_association": ["MEMBER"], "is_minimized": [True],
+    })
+    streams = {**streams,
+               "issue_comments": pd.concat([streams["issue_comments"], extra], ignore_index=True)}
+    d3 = fe(prs, streams, "D3")
+    d4 = fe(prs, streams, "D4")
+    assert d3["D"] == h(3)        # a minimized comment still counts under the blueprint rule
+    assert "D" not in d4.index    # D4 drops it, and D has no other eligible event
 
 
 def test_label_all_has_all_definitions(label_toy):
