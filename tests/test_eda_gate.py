@@ -26,3 +26,9 @@ def test_baseline_beating_base_rate_fails_sanity():
                                     b_min_fold_repos=8,
                                     baseline_rows=base_rows(p10=0.80, lo=0.75, hi=0.85, base=0.50))
     assert checks[4]["pass"] is False and "leak" in checks[4]["check"].lower()
+
+
+def test_empty_cohort_fails_every_check():
+    checks = eda_report.gate_checks(kept_n=0, d5_rate=float("nan"), a_repos_with_10=0,
+                                    b_min_fold_repos=0, baseline_rows=[])
+    assert [c["pass"] for c in checks] == [False] * 5

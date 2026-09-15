@@ -48,7 +48,7 @@ def gate_checks(kept_n: int, d5_rate: float, a_repos_with_10: int, b_min_fold_re
          "value": b_min_fold_repos, "pass": b_min_fold_repos >= 6},
         {"id": 5, "check": "baseline sanity: P@10 within CI of base rate (else replay LEAKS)",
          "value": [round(r["precision_at_10"], 3) for r in baseline_rows],
-         "pass": all(sane(r) for r in baseline_rows)},
+         "pass": bool(baseline_rows) and all(sane(r) for r in baseline_rows)},
     ]
 
 
@@ -100,6 +100,12 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     qc = json.loads(cohort_qc.KEPT.read_text(encoding="utf-8"))
     kept = qc["kept"]
+    if not kept:
+        checks = gate_checks(0, float("nan"), 0, 0, [])
+        GATE_JSON.parent.mkdir(parents=True, exist_ok=True)
+        GATE_JSON.write_text(json.dumps(checks, indent=2), encoding="utf-8")
+        print(f"no repos kept after QC; wrote FAIL gate to {GATE_JSON}")
+        return 1
     cohort = {e["repo"]: e for e in json.loads(cohort_qc.COHORT.read_text(encoding="utf-8"))["selected"]}
     tier_of = pd.Series({r: cohort[r]["star_tier"] for r in cohort})
 
