@@ -29,7 +29,7 @@ def _ns(x):
     return s.dt.tz_localize(None).to_numpy(dtype="datetime64[ns]")
 
 
-@dataclass
+@dataclass(eq=False)
 class History:
     repo: str
     created: np.ndarray        # datetime64[ns], sorted ascending
@@ -86,3 +86,25 @@ class History:
             "trailing_n": k,
             "trailing_window_complete": bool(lo >= self.window_start),
         }
+
+
+def brute_force_features(tier1: pd.DataFrame, labels: pd.DataFrame, repo: str,
+                         t: pd.Timestamp, global_rate: float, alpha: float = 5.0,
+                         threshold_h: float = 168.0, trailing_days: int = 90) -> dict:
+    """Independent pandas re-derivation of features_at, for auditing.
+
+    Deliberately does not touch History. If the two ever disagree, one is wrong."""
+    h = tier1[tier1["repo"] == repo].merge(
+        labels[["pr_id", "first_event_at", "is_slow"]], on="pr_id", how="left")
+    h = h[h["created_at"] < t]
+    backlog = int((h["closed_at"].isna() | (h["closed_at"] > t)).sum())
+    lo = t - pd.Timedelta(days=trailing_days)
+    thr = t - pd.Timedelta(hours=threshold_h)
+    w = h[(h["created_at"] >= lo) & h["is_slow"].notna()
+          & ((h["created_at"] <= thr)
+             | (h["first_event_at"].notna() & (h["first_event_at"] < t)))]
+    k = len(w)
+    n_slow = float(w["is_slow"].astype(float).sum())
+    return {"open_backlog_at_t": backlog,
+            "trailing_90d_slow_rate": (n_slow + alpha * global_rate) / (k + alpha),
+            "trailing_n": k}

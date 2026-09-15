@@ -161,6 +161,10 @@ visible. That is the structural guarantee; there is no separate "leakage check."
 | `trailing_90d_slow_rate` | over prefix rows with `created_at >= t − 90d` **and resolvable at t**: `created_at <= t − 168h` OR `first_event_at < t`. Rate = `(n_slow + α·g) / (n + α)` with `α = 5`, `g` = the D5 slow rate over the **training rows of the split being evaluated** (never the test rows; in Scenario B, the fold's training repos). Rows with no label (pre-window) are excluded from the rate but still count toward backlog. |
 | `trailing_window_complete` | `t − 90d >= 2024-01-01` — flag, not a feature; marks the noisy first 90 days |
 
+Labels feeding the rate are computed on human-authored, in-window PRs only
+(`splits.modelling_prs`); bot PRs still count toward `open_backlog_at_t` because backlog
+comes from Tier 1.
+
 The resolvability predicate is the `[R1]` correction to blueprint §4: "strictly earlier
 than the row" is insufficient because a PR opened 3 days ago has no knowable label yet.
 
@@ -210,9 +214,9 @@ Appends one row per (scenario, fold) to `experiments.csv` via `tracking.py`:
 `date, scenario, fold, model, features, params, n_train, n_test, precision_at_10,
 p10_ci_lo, p10_ci_hi, auc_pr, base_rate, notes`.
 
-**Expected result, stated in advance:** Precision@10 ≈ base rate within CI on both
-scenarios, because the score is constant within a repo. If it is *not* — if the baseline
-beats the base rate within-repo — something is leaking and the replay must be audited.
+P@10 vs base rate is a reported finding, not a leakage test: the trailing rate varies
+within a repo over time, so within-repo top-10 can beat the base rate via temporal
+autocorrelation. Leakage is tested directly by a replay audit (§11 #5).
 
 ## 10. EDA report (`eda_report.py`)
 
@@ -240,7 +244,7 @@ Writes `docs/phase2_eda.md` and `figures/*.png`. Sections, in order:
 | 2 | D5 global `is_slow` rate | in [10%, 70%] |
 | 3 | Scenario A test coverage | ≥ 20 repos with ≥ 10 test PRs each (Precision@10 well-defined) |
 | 4 | Scenario B fold size | every fold holds out ≥ 6 repos |
-| 5 | Baseline sanity | Precision@10 within the cluster-bootstrap CI of the base rate on both scenarios |
+| 5 | Replay audit: brute-force recomputation of backlog and trailing rate matches `features_at` on ≥200 seeded test rows per scenario | max \|Δrate\| < 1e-9, Δbacklog = 0 (**Hard stop** — replay leaks) |
 | 6 | `gate_report.py` refactor regression | litestream and skills outputs identical pre/post |
 
 Failing 1–4 means the cohort or the split is wrong and Phase 3 does not start.

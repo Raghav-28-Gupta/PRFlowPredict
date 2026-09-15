@@ -52,3 +52,28 @@ def test_unsorted_input_is_sorted(replay_toy):
     b = replay.History.from_frames("r", shuffled, labels, WS)
     t = pd.Timestamp("2024-04-21", tz="UTC")
     assert a.features_at(t, 0.5) == b.features_at(t, 0.5)
+
+
+def test_brute_force_matches_features_at_on_toy(replay_toy):
+    tier1, labels = replay_toy
+    hist = replay.History.from_frames("r", tier1, labels, WS)
+    for t in [pd.Timestamp("2024-04-21", tz="UTC"), pd.Timestamp("2024-02-01", tz="UTC")]:
+        a = hist.features_at(t, global_rate=0.5)
+        b = replay.brute_force_features(tier1, labels, "r", t, global_rate=0.5)
+        assert a["open_backlog_at_t"] == b["open_backlog_at_t"]
+        assert a["trailing_n"] == b["trailing_n"]
+        assert a["trailing_90d_slow_rate"] == pytest.approx(b["trailing_90d_slow_rate"])
+
+
+def test_trailing_window_excludes_old_labelled_rows():
+    def ts(s): return pd.Timestamp(s, tz="UTC")
+    tier1 = pd.DataFrame({"repo": ["r"] * 2, "pr_id": ["OLD", "NEW"],
+                          "created_at": [ts("2024-01-01"), ts("2024-05-01")],
+                          "closed_at": [pd.NaT, pd.NaT], "author_login": ["a", "b"]})
+    labels = pd.DataFrame({"pr_id": ["OLD", "NEW"],
+                           "first_event_at": [ts("2024-01-02"), ts("2024-05-02")],
+                           "is_slow": [True, False]})
+    hist = replay.History.from_frames("r", tier1, labels, WS)
+    f = hist.features_at(ts("2024-06-01"), global_rate=0.5)  # OLD is 152 days old
+    assert f["trailing_n"] == 1                               # outside the 90-day window
+    assert f["open_backlog_at_t"] == 2                        # but still in the backlog

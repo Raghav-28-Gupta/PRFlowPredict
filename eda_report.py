@@ -32,12 +32,7 @@ THRESHOLDS = [72, 120, 168, 240]
 # ----------------------------------------------------------------------------
 
 def gate_checks(kept_n: int, d5_rate: float, a_repos_with_10: int, b_min_fold_repos: int,
-                baseline_rows: list[dict]) -> list[dict]:
-    def sane(r):
-        # P@10 must sit within the CI of the base rate (with a 5pp tolerance on the
-        # bootstrap edges). Beating it within-repo means the replay leaks.
-        return r["p10_ci_lo"] - 0.05 <= r["base_rate_p10"] <= r["p10_ci_hi"] + 0.05 \
-            and r["precision_at_10"] <= r["base_rate_p10"] + 0.10
+                audits: list[dict]) -> list[dict]:
     return [
         {"id": 1, "check": "repos kept after QC >= 30", "value": kept_n, "pass": kept_n >= 30},
         {"id": 2, "check": "D5 global is_slow in [10%, 70%]", "value": round(d5_rate, 4),
@@ -46,9 +41,10 @@ def gate_checks(kept_n: int, d5_rate: float, a_repos_with_10: int, b_min_fold_re
          "value": a_repos_with_10, "pass": a_repos_with_10 >= 20},
         {"id": 4, "check": "Scenario B: every fold holds out >= 6 repos",
          "value": b_min_fold_repos, "pass": b_min_fold_repos >= 6},
-        {"id": 5, "check": "baseline sanity: P@10 within CI of base rate (else replay LEAKS)",
-         "value": [round(r["precision_at_10"], 3) for r in baseline_rows],
-         "pass": bool(baseline_rows) and all(sane(r) for r in baseline_rows)},
+        {"id": 5,
+         "check": "replay audit: brute-force recomputation matches features_at on sampled test rows (else replay LEAKS)",
+         "value": [{"n": a.get("n"), "max_abs_diff_rate": a.get("max_abs_diff_rate")} for a in audits],
+         "pass": bool(audits) and all(a["pass"] for a in audits)},
     ]
 
 
@@ -110,9 +106,7 @@ def main() -> int:
     tier_of = pd.Series({r: cohort[r]["star_tier"] for r in cohort})
 
     frames = load.load_all(kept)
-    prs = frames["pr_tier2"]
-    prs = prs[~prs["author_is_bot"].fillna(False).astype(bool)]
-    prs = prs[(prs["created_at"] >= splits.WINDOW_START) & (prs["created_at"] <= splits.WINDOW_END)]
+    prs = splits.modelling_prs(frames["pr_tier2"])
     streams = {k: frames[k] for k in labels.ALL_STREAMS}
     all_labels = labels.label_all(prs, streams)
     lab = all_labels[labels.PRIMARY]
@@ -123,6 +117,8 @@ def main() -> int:
     qc_df["reasons"] = qc_df["reasons"].apply("; ".join)
     share = splits.row_share(prs)
     qc_df["row_share"] = qc_df["repo"].map(share).fillna(0.0)
+    never_d5 = lab.groupby("repo")["never_reviewed_30d"].mean()
+    qc_df["never_reviewed_d5"] = qc_df["repo"].map(never_d5)
 
     # 2. sensitivity
     sens = pd.DataFrame([{"definition": k, "is_slow": v["is_slow"].mean(),
@@ -135,10 +131,15 @@ def main() -> int:
     # 3-4. figures
     hist_p, km_p = fig_hist(lab, tier_of), fig_km(lab, tier_of)
 
-    # 5. threshold sensitivity
-    thr = pd.DataFrame([{"threshold_h": t,
-                         "is_slow": float((lab["never_reviewed_30d"] | (lab["wait_h"] > t)).mean())}
-                        for t in THRESHOLDS])
+    # 5. threshold sensitivity: (tier x threshold) rows, plus tier "all"
+    lab_t = lab.assign(tier=lab["repo"].map(tier_of))
+    thr_rows = []
+    for t in THRESHOLDS:
+        is_slow_t = lab_t["never_reviewed_30d"] | (lab_t["wait_h"] > t)
+        for tier, g in is_slow_t.groupby(lab_t["tier"]):
+            thr_rows.append({"tier": tier, "threshold_h": t, "is_slow": float(g.mean())})
+        thr_rows.append({"tier": "all", "threshold_h": t, "is_slow": float(is_slow_t.mean())})
+    thr = pd.DataFrame(thr_rows)[["tier", "threshold_h", "is_slow"]]
 
     # 6. baseline
     rows = splits.prepare_rows(frames["pr_tier2"], lab, kept)
@@ -152,9 +153,14 @@ def main() -> int:
     # 7. gate
     a_cov = int((rows.loc[te_a].groupby("repo").size() >= 10).sum())
     b_min = min(rows.loc[te, "repo"].nunique() for _, te in folds_b)
-    checks = gate_checks(len(kept), float(lab["is_slow"].mean()), a_cov, b_min, base_rows)
+    audits = [r["audit"] for r in base_rows if "audit" in r]
+    checks = gate_checks(len(kept), float(lab["is_slow"].mean()), a_cov, b_min, audits)
     GATE_JSON.write_text(json.dumps(checks, indent=2), encoding="utf-8")
     verdict = "PASS" if all(c["pass"] for c in checks) else "FAIL"
+    # Display-only 6th row: gate_checks() itself still returns exactly 5 checks.
+    display_checks = checks + [{"id": 6,
+        "check": "gate_report refactor regression (tests/test_gate_regression.py)",
+        "value": "run pytest", "pass": "see pytest"}]
 
     look = qc.get("look_at_these", [])
     doc = f"""# Phase 2 — EDA and Gate
@@ -164,7 +170,7 @@ in-window PRs from kept repos ({len(prs):,} PRs, {len(kept)} repos).
 
 ## Verdict: **{verdict}**
 
-{md_table(pd.DataFrame(checks)[["id", "check", "value", "pass"]], "{}")}
+{md_table(pd.DataFrame(display_checks)[["id", "check", "value", "pass"]], "{}")}
 
 ## 1. Cohort
 
@@ -200,8 +206,10 @@ Recommendation: keep 168h unless the curve shows a natural break elsewhere.
 
 {md_table(base_df)}
 
-Expected in advance: P@10 ≈ base rate (score is constant within a repo). AUC-PR may exceed
-the base rate because the trailing rate ranks repos.
+P@10 vs base rate is REPORTED, not gated: the trailing rate varies within a repo over
+time, so within-repo top-10 selects PRs from the slowest period and can beat the base
+rate through temporal autocorrelation alone. Leakage is tested directly by the replay
+audit (gate #5).
 """
     DOC.write_text(doc, encoding="utf-8")
     print(f"wrote {DOC}  verdict={verdict}")

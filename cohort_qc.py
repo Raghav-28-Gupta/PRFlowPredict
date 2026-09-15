@@ -31,10 +31,15 @@ LOOK_SPREAD_PP = 0.15
 def check_repo(entry: dict, frames: dict[str, pd.DataFrame], window) -> dict:
     repo = entry["repo"]
     prs = frames["pr_tier2"]
+    if prs.empty or "created_at" not in prs.columns:
+        return {"repo": repo, "cell": entry["cell"], "kept": False,
+                "reasons": ["no data collected"],
+                "n_in_window": 0, "n_human": 0, "bot_share": 0.0, "language_dominant": None,
+                "is_slow_d5": float("nan"), "is_slow_d3": float("nan"),
+                "spread_d3_d5": float("nan")}
     prs = prs[(prs["created_at"] >= window[0]) & (prs["created_at"] <= window[1])]
-    n = len(prs)
-    n_bot = int(prs["author_is_bot"].sum()) if n else 0
-    n_human = n - n_bot
+    is_bot = (prs["author_is_bot"] == True)   # noqa: E712 -- null-safe on object dtype
+    n = len(prs); n_bot = int(is_bot.sum()); n_human = n - n_bot
     bot_share = n_bot / n if n else 0.0
     meta = frames["repo_meta"]
     lang = str(meta["language_dominant"].iloc[0]) if not meta.empty else None
@@ -49,7 +54,7 @@ def check_repo(entry: dict, frames: dict[str, pd.DataFrame], window) -> dict:
         reasons.append(f"language {lang!r} not in stratum family {sorted(fam)}")
 
     # Rates are REPORTED for the look-at-these list, never used as a drop reason.
-    human = prs[~prs["author_is_bot"]]
+    human = prs[~is_bot]
     streams = {k: frames.get(k, pd.DataFrame()) for k in labels.ALL_STREAMS}
     d5 = d3 = float("nan")
     if len(human):

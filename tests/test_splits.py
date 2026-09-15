@@ -63,3 +63,15 @@ def test_row_share_sums_to_one():
     rows = rows_fixture()
     s = splits.row_share(rows)
     assert abs(s.sum() - 1.0) < 1e-9 and s.index[0] == "big"
+
+
+def test_modelling_prs_drops_bots_and_out_of_window_keeps_null_author_is_bot():
+    def ts(s): return pd.Timestamp(s, tz="UTC")
+    prs = pd.DataFrame({
+        "pr_id": ["human", "bot", "out_of_window", "null_author_is_bot", "kept2"],
+        "created_at": [ts("2025-01-01"), ts("2025-01-01"), ts("2023-01-01"),
+                       ts("2025-01-01"), ts("2025-06-01")],
+        "author_is_bot": pd.Series([False, True, False, None, False], dtype=object),
+    })
+    out = splits.modelling_prs(prs)
+    assert set(out["pr_id"]) == {"human", "null_author_is_bot", "kept2"}

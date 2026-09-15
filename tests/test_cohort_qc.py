@@ -51,3 +51,21 @@ def test_label_rate_never_a_drop_reason():
     # 150 human PRs, none ever reviewed -> 100% never-reviewed. Must still be kept.
     r = cohort_qc.check_repo(entry(), frames(150, 0, "Python"), WINDOW)
     assert r["kept"] and r["is_slow_d5"] == 1.0
+
+
+def test_null_author_is_bot_is_treated_as_human():
+    f = frames(150, 10, "Python")
+    prs = f["pr_tier2"]
+    prs["author_is_bot"] = prs["author_is_bot"].astype(object)
+    prs.loc[prs.index[0], "author_is_bot"] = None   # a human row, now null (object dtype)
+    r = cohort_qc.check_repo(entry(), f, WINDOW)     # must not raise TypeError
+    assert r["kept"]
+    assert r["n_human"] == 150  # null counted as human (not True), same as before the edit
+
+
+def test_no_data_collected_is_dropped_without_raising():
+    f = frames(150, 10, "Python")
+    f["pr_tier2"] = pd.DataFrame()
+    r = cohort_qc.check_repo(entry(), f, WINDOW)
+    assert r["kept"] is False
+    assert r["reasons"] == ["no data collected"]

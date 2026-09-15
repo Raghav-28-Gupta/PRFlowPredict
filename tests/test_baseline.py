@@ -13,7 +13,8 @@ def test_baseline_end_to_end_on_toy():
     # r1 is slow 80% of the time, r2 20% -- the baseline should separate REPOS
     is_slow = rng.random(n) < np.where(repo == "r1", 0.8, 0.2)
     prs = pd.DataFrame({"repo": repo, "pr_id": [f"p{i}" for i in range(n)],
-                        "created_at": created, "closed_at": [pd.NaT] * n,
+                        "created_at": created,
+                        "closed_at": pd.Series([pd.NaT] * n, dtype="datetime64[ns, UTC]"),
                         "author_is_bot": False, "author_login": "u"})
     fe = pd.Series(created + pd.Timedelta(hours=2))
     fe[is_slow] = pd.NaT
@@ -26,8 +27,8 @@ def test_baseline_end_to_end_on_toy():
     tr, te = splits.scenario_a(rows, cap_frac=1.0)
     res = baseline.evaluate("A", rows, [(tr, te)], tier1, lab)[0]
 
-    # within-repo the score is ~constant, so P@10 is a random draw ~ base rate
-    assert res["p10_ci_lo"] - 0.15 <= res["base_rate_p10"] <= res["p10_ci_hi"] + 0.15
+    # gate #5: the replay audit proves features_at is leak-free by independent recomputation
+    assert res["audit"]["pass"] is True
     # but ACROSS repos the score separates r1 from r2, so AUC-PR > base rate
     assert res["auc_pr"] > res["base_rate"]
     assert res["n_test_repos"] == 2

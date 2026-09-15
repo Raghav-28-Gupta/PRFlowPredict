@@ -20,13 +20,24 @@ WINDOW_END = pd.Timestamp("2026-06-30T23:59:59Z")
 CUTOFF_A = pd.Timestamp("2026-01-01T00:00:00Z")
 
 
+def modelling_prs(prs_tier2: pd.DataFrame) -> pd.DataFrame:
+    """Human-authored, in-window PRs -- the row set every label and rate is computed on.
+
+    Bot PRs follow different timelines (blueprint §2) and are analysed separately; they
+    still count toward the open backlog, which comes from Tier 1, not from here."""
+    m = (~(prs_tier2["author_is_bot"] == True)                       # noqa: E712 null-safe
+         & (prs_tier2["created_at"] >= WINDOW_START)
+         & (prs_tier2["created_at"] <= WINDOW_END))
+    return prs_tier2[m].reset_index(drop=True)
+
+
 def prepare_rows(prs_tier2: pd.DataFrame, label_primary: pd.DataFrame,
                  kept_repos: list[str]) -> pd.DataFrame:
     rows = prs_tier2.merge(
         label_primary[["pr_id", "is_slow", "first_event_at", "wait_h"]], on="pr_id", how="inner")
     rows = rows[
         rows["repo"].isin(kept_repos)
-        & ~rows["author_is_bot"].fillna(False).astype(bool)
+        & ~(rows["author_is_bot"] == True)                            # noqa: E712 null-safe
         & (rows["created_at"] >= WINDOW_START) & (rows["created_at"] <= WINDOW_END)
     ]
     return rows.sort_values(["created_at", "pr_id"]).reset_index(drop=True)
