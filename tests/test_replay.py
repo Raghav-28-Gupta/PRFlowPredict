@@ -162,3 +162,29 @@ def test_brute_force_matches_all_keys(replay_toy):
                     assert np.isnan(b[k]), (t, author, k)
                 else:
                     assert a[k] == pytest.approx(b[k]), (t, author, k)
+
+
+def test_author_rate_uses_whole_history_not_90d_window():
+    def ts(s): return pd.Timestamp(s, tz="UTC")
+    # OLD: 152 days before t, labelled slow, resolvable; NEW: 30 days before t, labelled fast.
+    # GHOST: unlabelled, author_login None -- must not match author "a" and must not raise.
+    # All-NaT columns must stay tz-aware, or brute_force_features' raw column comparison
+    # against tz-aware `t` raises TypeError (pandas infers tz-naive for an all-NaT list).
+    nat3 = pd.Series([pd.NaT] * 3, dtype="datetime64[ns, UTC]")
+    tier1 = pd.DataFrame({"repo": ["r"] * 3, "pr_id": ["OLD", "NEW", "GHOST"],
+                          "created_at": [ts("2024-01-01"), ts("2024-05-01"), ts("2024-03-01")],
+                          "closed_at": nat3, "merged_at": nat3,
+                          "author_login": ["a", "a", None]})
+    labels = pd.DataFrame({"pr_id": ["OLD", "NEW"],
+                           "first_event_at": [pd.NaT, ts("2024-05-02")],
+                           "is_slow": [True, False]})
+    hist = replay.History.from_frames("r", tier1, labels, WS)
+    t = ts("2024-06-01")
+    f = hist.features_at(t, 0.5, 0.4, author="a")
+    assert f["trailing_n"] == 1                                   # repo rate: only NEW is in the window
+    assert f["author_prior_n"] == 2                               # author rate: OLD counts too
+    assert f["author_prior_slow_rate_here"] == pytest.approx((1 + 5 * 0.5) / (2 + 5))
+    assert f["n_prior_prs_here"] == 2                             # GHOST (None) not matched, no crash
+    assert f["open_backlog_at_t"] == 3
+    b = replay.brute_force_features(tier1, labels, "r", t, 0.5, global_merge_rate=0.4, author="a")
+    assert b["author_prior_n"] == 2 and b["author_prior_slow_rate_here"] == pytest.approx(f["author_prior_slow_rate_here"])
