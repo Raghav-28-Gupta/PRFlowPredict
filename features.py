@@ -164,8 +164,9 @@ def at_open_features(prs: pd.DataFrame, timeline: pd.DataFrame,
         return frame[frame["event_type"].isin(types)].groupby("pr_id").size().reindex(idx, fill_value=0)
 
     def earliest_prev(types, col):
-        f = post[post["event_type"].isin(types)].sort_values("created_at")
-        return f.groupby("pr_id")[col].first().reindex(idx)
+        f = post[post["event_type"].isin(types)].sort_values("created_at", kind="stable")
+        f = f.drop_duplicates("pr_id", keep="first")            # literal earliest row, null or not
+        return f.set_index("pr_id")[col].reindex(idx)
 
     flips = count(post, ["ReadyForReviewEvent", "ConvertToDraftEvent"])
     is_draft_current = (p["is_draft_current"] == True)                                   # noqa: E712
@@ -176,6 +177,10 @@ def at_open_features(prs: pd.DataFrame, timeline: pd.DataFrame,
 
     title_at_open = earliest_prev(["RenamedTitleEvent"], "previous_title").fillna(p["title_current"]).fillna("")
     base_at_open = earliest_prev(["BaseRefChangedEvent"], "previous_ref").fillna(p["base_ref_current"])
+
+    missing = sorted(set(prs["repo"]) - set(repo_meta["repo"]))
+    if missing:
+        raise KeyError(f"repo_meta has no row for {len(missing)} repo(s): {missing[:5]}")
     default_branch = p["repo"].map(repo_meta.set_index("repo")["default_branch"])
 
     grace = tl["created_at"] <= tl["pr_created_at"] + REVIEW_REQUEST_GRACE

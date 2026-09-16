@@ -150,6 +150,23 @@ def test_at_open_review_requests_and_flags(at_open_toy):
     assert set(a.columns) == {c for c, m in features.COLUMN_SPEC.items() if m["group"] in ("at_open", "flag")} - {"body_edited", "trailing_window_complete"}
 
 
+def test_earliest_title_event_wins_even_when_its_previous_is_null():
+    t0 = ts("2025-01-01T00:00")
+    prs = pd.DataFrame({"repo": ["o/r"], "pr_id": ["X"], "created_at": [t0],
+                        "is_draft_current": [False], "n_labels_current": [0],
+                        "title_current": ["current-title"], "base_ref_current": ["main"],
+                        "additions_at_open": [1.0], "deletions_at_open": [0.0],
+                        "n_commits_at_open": [1.0], "diff_is_exact": [True]})
+    timeline = pd.DataFrame([
+        ("X", "RenamedTitleEvent", t0 + pd.Timedelta(hours=1), None, None, None),      # earliest: null previous
+        ("X", "RenamedTitleEvent", t0 + pd.Timedelta(hours=2), "later-prev", None, None),
+    ], columns=["pr_id", "event_type", "created_at", "previous_title", "previous_ref", "requested_reviewer_type"])
+    repo_meta = pd.DataFrame({"repo": ["o/r"], "default_branch": ["main"]})
+    a = features.at_open_features(prs, timeline, repo_meta)
+    # the earliest event's previous_title is null -> fall back to title_current (13), NOT 'later-prev' (10)
+    assert a.loc["X", "title_len_at_open"] == len("current-title")
+
+
 def test_column_spec_is_the_contract():
     spec = features.COLUMN_SPEC
     assert len(spec) == 50
