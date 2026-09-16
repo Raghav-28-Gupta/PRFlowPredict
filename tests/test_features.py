@@ -178,3 +178,84 @@ def test_column_spec_is_the_contract():
     assert "is_slow" not in trainable and "pr_id" not in trainable
     assert "diff_is_exact" not in trainable and "body_edited" not in trainable
     assert "trailing_90d_slow_rate" in trainable and "author_account_age_days" in trainable
+
+
+@pytest.fixture
+def frames_toy():
+    """Two repos, 6 human PRs + 1 bot PR + 1 out-of-window PR, all needed tables."""
+    t = lambda s: ts(s)
+    tier1 = pd.DataFrame({
+        "repo": ["o/r"] * 5 + ["o/s"] * 3,
+        "pr_id": ["r1", "r2", "r3", "r4", "r5", "s1", "s2", "s3"],
+        "created_at": [t("2023-01-01"), t("2024-02-01"), t("2024-06-01"), t("2025-01-15"),
+                       t("2026-02-01"), t("2024-03-01"), t("2025-09-01"), t("2026-03-01")],
+        "closed_at": [t("2023-02-01"), t("2024-02-10"), pd.NaT, t("2025-02-01"), pd.NaT,
+                      t("2024-03-05"), pd.NaT, pd.NaT],
+        "merged_at": [t("2023-02-01"), t("2024-02-10"), pd.NaT, pd.NaT, pd.NaT,
+                      t("2024-03-05"), pd.NaT, pd.NaT],
+        "author_login": ["a", "a", "b", "a", "b", "c", "c", None],
+    })
+    pr2 = tier1[tier1["pr_id"] != "r1"].copy()                    # r1 is pre-window (Tier 1 only)
+    pr2["number"] = range(1, len(pr2) + 1)
+    pr2["author_is_bot"] = [False, False, False, False, True, False, False]   # s1 is a bot
+    pr2["author_created_at"] = t("2020-01-01")
+    pr2["author_is_deleted"] = pr2["author_login"].isna()
+    pr2["is_cross_repository"] = False
+    pr2["body_current"] = "x"; pr2["last_edited_at"] = pd.NaT
+    pr2["is_draft_current"] = False; pr2["n_labels_current"] = 0
+    pr2["title_current"] = "t"; pr2["base_ref_current"] = "main"
+    pr2["additions_at_open"] = 1.0; pr2["deletions_at_open"] = 0.0; pr2["n_commits_at_open"] = 1.0
+    pr2["diff_is_exact"] = True
+    reviews = pd.DataFrame({
+        "pr_id": ["r2", "r4", "s2"], "created_at": [t("2024-02-02"), t("2025-01-16"), t("2025-09-02")],
+        "submitted_at": [t("2024-02-02"), t("2025-01-16"), t("2025-09-02")],
+        "state": ["APPROVED"] * 3, "author_login": ["m"] * 3, "author_typename": ["User"] * 3,
+        "author_association": ["MEMBER"] * 3,
+    })
+    empty = pd.DataFrame(columns=["pr_id", "created_at", "published_at", "author_login",
+                                  "author_typename", "author_association", "is_minimized"])
+    timeline = pd.DataFrame(columns=["pr_id", "event_type", "created_at", "previous_title",
+                                     "previous_ref", "requested_reviewer_type"])
+    repo_meta = pd.DataFrame({
+        "repo": ["o/r", "o/s"], "created_at": [t("2022-01-01"), t("2024-01-01")],
+        "n_assignable_users": [3, 1], "n_mentionable_users": [9, 2],
+        "owner_type": ["Organization", "User"], "has_codeowners": [True, False],
+        "has_pr_template": [True, False], "has_contributing": [False, False],
+        "n_ci_workflows": [2, 0], "language_dominant": ["Go", "Go"], "default_branch": ["main", "main"],
+    })
+    return {"pr_tier1": tier1, "pr_tier2": pr2, "reviews": reviews, "thread_comments": empty,
+            "issue_comments": empty, "timeline": timeline, "commits": pd.DataFrame(),
+            "repo_meta": repo_meta}
+
+
+def test_build_end_to_end(frames_toy):
+    table, ctx = features.build(kept=["o/r", "o/s"], frames=frames_toy)
+    # r1 pre-window and s1 bot are excluded; 6 modelling rows remain
+    assert sorted(table["pr_id"]) == ["r2", "r3", "r4", "r5", "s2", "s3"]
+    assert list(table.columns) == list(features.COLUMN_SPEC)
+    row = table.set_index("pr_id")
+    # author 'a' at r4 (2025-01-15): prior r1 (2023, merged) and r2 (merged 2024-02-10) -> 2 prior, 2 merged
+    assert row.loc["r4", "n_prior_prs_here"] == 2 and row.loc["r4", "n_prior_merged_here"] == 2
+    assert row.loc["r4", "is_first_pr_here"] == False                 # noqa: E712
+    assert row.loc["r2", "is_first_pr_here"] == False                 # noqa: E712  r1 is prior even though pre-window
+    assert row.loc["r3", "is_first_pr_here"] == True                  # noqa: E712  b's first
+    assert row.loc["s3", "is_first_pr_here"] == True                  # noqa: E712  deleted author
+    assert row.loc["r4", "open_backlog_at_t"] == 1                    # r3 open at 2025-01-15
+    assert row.loc["r4", "repo_age_days_at_open"] == pytest.approx((ts("2025-01-15") - ts("2022-01-01")).days)
+    # only documented-nullable columns may be NaN
+    nullable = {c for c, m in features.COLUMN_SPEC.items() if m["nullable"]}
+    for c in table.columns:
+        if c not in nullable:
+            assert table[c].notna().all(), c
+    assert 0.0 <= ctx["g"] <= 1.0 and 0.0 <= ctx["g_merge"] <= 1.0
+
+
+def test_write_table_roundtrip(frames_toy, tmp_path):
+    table, _ = features.build(kept=["o/r", "o/s"], frames=frames_toy)
+    p = tmp_path / "f.parquet"
+    features.write_table(table, p)
+    back = pd.read_parquet(p)
+    assert list(back.columns) == list(table.columns) and len(back) == len(table)
+    import pyarrow.parquet as pq
+    meta = pq.read_metadata(p).metadata
+    assert b"built_at" in meta and b"git_sha" in meta

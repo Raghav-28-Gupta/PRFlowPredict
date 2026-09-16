@@ -229,3 +229,97 @@ def repo_features(repo_meta: pd.DataFrame, prs: pd.DataFrame) -> pd.DataFrame:
         "language_dominant": joined["language_dominant"].astype(str),
         "repo_age_days_at_open": ((joined["created_at"] - repo_created).dt.total_seconds() / 86400.0).astype(float),
     }, index=p.index)
+
+
+# ---------------------------------------------------------------------------
+# Group 3: replay (chronological, created_at < t; proven by the brute-force audit)
+# ---------------------------------------------------------------------------
+
+def replay_features(rows: pd.DataFrame, tier1: pd.DataFrame, label_d5: pd.DataFrame,
+                    g: float, g_merge: float) -> pd.DataFrame:
+    hist = {r: replay.History.from_frames(r, tier1, label_d5, splits.WINDOW_START)
+            for r in rows["repo"].unique()}
+    recs = []
+    for repo, t, author in zip(rows["repo"], rows["created_at"], rows["author_login"]):
+        a = None if (author is None or (isinstance(author, float) and np.isnan(author))) else author
+        recs.append(hist[repo].features_at(t, g, g_merge, ALPHA, author=a))
+    out = pd.DataFrame(recs, index=rows["pr_id"].to_numpy())
+    out.index.name = "pr_id"
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Assembly
+# ---------------------------------------------------------------------------
+
+def priors(rows: pd.DataFrame) -> tuple[float, float]:
+    """Shrinkage priors from Scenario A TRAINING rows only (spec §6.3)."""
+    train = rows[rows["created_at"] < splits.CUTOFF_A]
+    if train.empty:
+        train = rows
+    g = float(train["is_slow"].mean())
+    g_merge = float((train["merged_at"].notna() & (train["merged_at"] < splits.CUTOFF_A)).mean())
+    return g, g_merge
+
+
+def build(kept: list[str] | None = None, frames: dict | None = None) -> tuple[pd.DataFrame, dict]:
+    kept = kept if kept is not None else cohort_qc.kept_repos()
+    frames = frames if frames is not None else load.load_all(kept)
+
+    prs = splits.modelling_prs(frames["pr_tier2"])
+    prs = prs[prs["repo"].isin(kept)].reset_index(drop=True)
+    streams = {k: frames[k] for k in labels.ALL_STREAMS}
+    lab = labels.label(prs, labels.first_human_event(prs, streams, labels.DEFINITIONS[labels.PRIMARY]))
+    rows = splits.prepare_rows(prs, lab, kept)
+    g, g_merge = priors(rows)
+    log.info("rows=%d repos=%d g=%.3f g_merge=%.3f", len(rows), rows["repo"].nunique(), g, g_merge)
+
+    static = static_features(rows)
+    at_open = at_open_features(rows, frames["timeline"], frames["repo_meta"])
+    rep = replay_features(rows, frames["pr_tier1"], lab, g, g_merge)
+    repo = repo_features(frames["repo_meta"], rows)
+
+    lab_idx = lab.set_index("pr_id")[[c for c in LABEL_COLS if c != "is_slow"]]
+    table = (rows.set_index("pr_id")[[k for k in KEYS if k != "pr_id"] + ["is_slow"]]
+             .join(lab_idx).join(static).join(at_open).join(rep).join(repo)
+             .reset_index())
+    missing = [c for c in COLUMN_SPEC if c not in table.columns]
+    extra = [c for c in table.columns if c not in COLUMN_SPEC]
+    if missing or extra:
+        raise RuntimeError(f"COLUMN_SPEC drift: missing={missing} extra={extra}")
+    table = table[list(COLUMN_SPEC)]
+    return table, {"rows": rows, "tier1": frames["pr_tier1"], "label_d5": lab, "g": g, "g_merge": g_merge}
+
+
+def _git_sha() -> str:
+    try:
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
+                              text=True, cwd=ROOT, timeout=10).stdout.strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+def write_table(table: pd.DataFrame, path: Path = OUT) -> None:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    path.parent.mkdir(parents=True, exist_ok=True)
+    t = pa.Table.from_pandas(table, preserve_index=False)
+    meta = dict(t.schema.metadata or {})
+    meta.update({b"built_at": datetime.now(timezone.utc).isoformat().encode(),
+                 b"git_sha": _git_sha().encode()})
+    pq.write_table(t.replace_schema_metadata(meta), path)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--out", default=str(OUT))
+    args = ap.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    table, _ = build()
+    write_table(table, Path(args.out))
+    print(f"wrote {len(table):,} rows x {len(table.columns)} cols to {args.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
