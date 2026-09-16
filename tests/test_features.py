@@ -296,3 +296,11 @@ def test_audit_check1_names_its_source(frames_toy):
     table, ctx = features.build(kept=["o/r", "o/s"], frames=frames_toy)
     assert "Phase 2" in features.audit(table, ctx, n=6, expected_rows=6)[0]["check"]
     assert "INTERNAL" in features.audit(table, ctx, n=6)[0]["check"]
+
+
+def test_dictionary_lists_every_column_once():
+    md = features.render_dictionary()
+    for c in features.COLUMN_SPEC:
+        assert md.count(f"| `{c}` |") == 1, c
+    assert "never a feature" in md.lower()
+    assert "| Column | Group | Status | Type | Nullable | Derivation |" in md
