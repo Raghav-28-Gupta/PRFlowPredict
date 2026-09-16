@@ -26,6 +26,9 @@ from pathlib import Path
 
 import pandas as pd
 
+import labels
+import load
+
 log = logging.getLogger("gate")
 
 PROCESSED = Path(__file__).parent / "data" / "processed"
@@ -42,104 +45,26 @@ def _load(repo_dir: Path, name: str) -> pd.DataFrame:
     return pd.read_parquet(p) if p.exists() else pd.DataFrame()
 
 
-def first_human_event(
-    prs: pd.DataFrame,
-    events: pd.DataFrame,
-    time_col: str,
-    *,
-    exclude_minimized: bool = False,
-    exclude_association: set[str] | None = None,
-) -> pd.Series:
-    """Earliest event per PR that is not by the PR's own author and not by a bot.
-
-    This is the mechanical part of the label, applied identically to every candidate
-    definition so the comparison is apples to apples. What VARIES between definitions
-    is which event streams are passed in and which exclusions are applied -- that is
-    the Phase 2 decision this script is measuring the sensitivity of.
-    """
-    if events.empty:
-        return pd.Series(dtype="datetime64[ns, UTC]")
-
-    ev = events.copy()
-    if time_col not in ev.columns:
-        return pd.Series(dtype="datetime64[ns, UTC]")
-
-    ev = ev[ev[time_col].notna()]
-    if exclude_minimized and "is_minimized" in ev.columns:
-        ev = ev[~(ev["is_minimized"] == True)]  # noqa: E712 -- null-safe
-    if exclude_association and "author_association" in ev.columns:
-        ev = ev[~ev["author_association"].isin(exclude_association)]
-
-    # non-bot
-    if "author_is_bot" in ev.columns:
-        ev = ev[~(ev["author_is_bot"] == True)]  # noqa: E712 -- null-safe
-
-    # non-author: join the PR's own author login and drop self-events
-    pr_author = prs.set_index("pr_id")["author_login"]
-    ev = ev.join(pr_author.rename("_pr_author"), on="pr_id")
-    ev = ev[ev["author_login"].notna() & (ev["author_login"] != ev["_pr_author"])]
-
-    return ev.groupby("pr_id")[time_col].min()
-
-
-def label_under(prs: pd.DataFrame, first_event: pd.Series) -> pd.DataFrame:
-    """Apply the blueprint's label rule to one definition's first-event series.
-
-    The 30-day observation window is what makes censoring a non-issue: any PR with no
-    qualifying event within 720h is is_slow=1 with certainty, because 720h > 168h.
-    """
-    out = prs[["pr_id", "created_at"]].copy()
-    out["first_event"] = out["pr_id"].map(first_event)
-    out["wait_h"] = (out["first_event"] - out["created_at"]).dt.total_seconds() / 3600.0
-
-    reviewed_in_window = out["wait_h"].notna() & (out["wait_h"] <= CENSOR_WINDOW_H)
-    out["never_reviewed_30d"] = ~reviewed_in_window
-    out["is_slow"] = (~reviewed_in_window) | (out["wait_h"] > SLOW_THRESHOLD_H)
-    return out
+# Display names keep the original wording so gate.json is comparable across runs.
+DISPLAY = {
+    "D1": "D1 reviews only",
+    "D2": "D2 + inline review comments",
+    "D3": "D3 + issue comments (blueprint)",
+    "D4": "D4 D3 excl. minimized",
+    "D5": "D5 D3 excl. NONE-association",
+}
 
 
 def build_definitions(repo_dir: Path) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
-    prs = _load(repo_dir, "pr_tier2")
+    """Thin adapter over labels.py -- the target has exactly one implementation."""
+    repo = repo_dir.name.replace("__", "/")
+    frames = load.load_repo(repo)
+    prs = frames["pr_tier2"]
     if prs.empty:
         return prs, {}
-
-    reviews = _load(repo_dir, "reviews")
-    threads = _load(repo_dir, "thread_comments")
-    issues = _load(repo_dir, "issue_comments")
-
-    # Reviews use submittedAt: the time the author could SEE the review. createdAt can
-    # be the drafting time, which is invisible to them (verified: a probed review had
-    # createdAt 16:55:22 vs submittedAt 17:07:48). Falling back to createdAt only where
-    # submittedAt is absent.
-    if not reviews.empty:
-        reviews = reviews.copy()
-        reviews["visible_at"] = reviews["submitted_at"].fillna(reviews["created_at"])
-    if not threads.empty:
-        threads = threads.copy()
-        threads["visible_at"] = threads["published_at"].fillna(threads["created_at"])
-    if not issues.empty:
-        issues = issues.copy()
-        issues["visible_at"] = issues["published_at"].fillna(issues["created_at"])
-
-    def cat(*frames):
-        frames = [f for f in frames if not f.empty]
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-
-    defs = {
-        "D1 reviews only":
-            first_human_event(prs, reviews, "visible_at"),
-        "D2 + inline review comments":
-            first_human_event(prs, cat(reviews, threads), "visible_at"),
-        "D3 + issue comments (blueprint)":
-            first_human_event(prs, cat(reviews, threads, issues), "visible_at"),
-        "D4 D3 excl. minimized":
-            first_human_event(prs, cat(reviews, threads, issues), "visible_at",
-                              exclude_minimized=True),
-        "D5 D3 excl. NONE-association":
-            first_human_event(prs, cat(reviews, threads, issues), "visible_at",
-                              exclude_association={"NONE"}),
-    }
-    return prs, {k: label_under(prs, v) for k, v in defs.items()}
+    streams = {k: frames[k] for k in labels.ALL_STREAMS}
+    out = labels.label_all(prs, streams, threshold_h=SLOW_THRESHOLD_H, censor_h=CENSOR_WINDOW_H)
+    return prs, {DISPLAY[k]: v for k, v in out.items()}
 
 
 def gate_for_repo(repo_dir: Path) -> dict:
