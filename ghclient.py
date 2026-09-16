@@ -321,7 +321,11 @@ class GitHubGraphQL:
 
             except FatalError:
                 raise
-            except (TransientError, requests.Timeout, requests.ConnectionError) as exc:
+            # requests.RequestException is the base: it covers Timeout and ConnectionError
+            # AND the mid-body failures (ChunkedEncodingError, ContentDecodingError) that
+            # are not ConnectionError subclasses. Observed live: a ChunkedEncodingError
+            # escaped a narrower catch here and killed a 45-repo run at repo 16.
+            except (TransientError, requests.RequestException) as exc:
                 last_exc = exc
                 self._last_request_at = time.monotonic()
                 kind = getattr(exc, "kind", "transient")
