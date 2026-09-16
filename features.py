@@ -142,6 +142,9 @@ def static_features(prs: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def repo_features(repo_meta: pd.DataFrame, prs: pd.DataFrame) -> pd.DataFrame:
+    missing = sorted(set(prs["repo"]) - set(repo_meta["repo"]))
+    if missing:
+        raise KeyError(f"repo_meta has no row for {len(missing)} repo(s): {missing[:5]}")
     m = repo_meta.set_index("repo")
     p = prs.set_index("pr_id")
     joined = p[["repo", "created_at"]].join(m, on="repo", rsuffix="_repo")

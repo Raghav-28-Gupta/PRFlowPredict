@@ -64,8 +64,14 @@ def test_repo_features(prs_toy, repo_meta_toy):
     assert r.loc["C", "repo_age_days_at_open"] == pytest.approx(31.0)
 
 
+def test_repo_features_names_missing_repos(prs_toy, repo_meta_toy):
+    with pytest.raises(KeyError, match="o/s"):
+        features.repo_features(repo_meta_toy[repo_meta_toy["repo"] == "o/r"], prs_toy)
+
+
 def test_column_spec_is_the_contract():
     spec = features.COLUMN_SPEC
+    assert len(spec) == 50
     assert set(features.KEYS) <= set(spec) and set(features.LABEL_COLS) <= set(spec)
     for col, meta in spec.items():
         assert set(meta) == {"group", "status", "dtype", "nullable", "derivation"}, col
