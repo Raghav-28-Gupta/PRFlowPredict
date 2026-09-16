@@ -310,12 +310,115 @@ def write_table(table: pd.DataFrame, path: Path = OUT) -> None:
     pq.write_table(t.replace_schema_metadata(meta), path)
 
 
+# ---------------------------------------------------------------------------
+# Phase 3 gate
+# ---------------------------------------------------------------------------
+
+NULLABLE = {c for c, m in COLUMN_SPEC.items() if m["nullable"]}
+AUDIT_KEYS = tuple(k for k in replay.REPLAY_KEYS)   # every replay-derived column
+
+
+def audit(table: pd.DataFrame, ctx: dict, n: int = 500, seed: int = SEED,
+          expected_rows: int | None = None) -> list[dict]:
+    rows, tier1, lab, g, g_merge = ctx["rows"], ctx["tier1"], ctx["label_d5"], ctx["g"], ctx["g_merge"]
+
+    # 1. row conservation
+    exp = expected_rows if expected_rows is not None else len(rows)
+    c1 = {"id": 1, "check": "row count == modelling rows for kept repos", "value": [len(table), exp],
+          "pass": len(table) == exp}
+
+    # 2. brute-force audit of every replay column -- the leakage hard stop
+    sample = table.sample(n=min(n, len(table)), random_state=seed)
+    by_id = rows.set_index("pr_id")
+    max_diff, worst = 0.0, None
+    for _, r in sample.iterrows():
+        src = by_id.loc[r["pr_id"]]
+        a = src["author_login"]
+        a = None if (a is None or (isinstance(a, float) and np.isnan(a))) else a
+        b = replay.brute_force_features(tier1, lab, r["repo"], r["created_at"], g, ALPHA,
+                                        global_merge_rate=g_merge, author=a)
+        for k in AUDIT_KEYS:
+            x, y = r[k], b[k]
+            if isinstance(x, (bool, np.bool_)) or isinstance(y, bool):
+                d = 0.0 if bool(x) == bool(y) else 1.0
+            elif (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
+                d = 0.0 if (isinstance(x, float) and np.isnan(x) and isinstance(y, float) and np.isnan(y)) else 1.0
+            else:
+                d = abs(float(x) - float(y))
+            if d > max_diff:
+                max_diff, worst = d, (r["pr_id"], k, x, y)
+    c2 = {"id": 2, "check": "replay audit: brute-force recomputation of every replay column matches (else replay LEAKS)",
+          "value": {"n": int(len(sample)), "max_abs_diff": max_diff, "worst": worst}, "pass": max_diff < 1e-9}
+
+    # 3. NaN only where documented
+    bad = {c: int(table[c].isna().sum()) for c in table.columns if c not in NULLABLE and table[c].isna().any()}
+    c3 = {"id": 3, "check": "no NaN outside documented-nullable columns", "value": bad, "pass": not bad}
+
+    # 4. timeline truncation rate
+    rate = float(table["timeline_may_be_truncated"].mean()) if len(table) else 0.0
+    c4 = {"id": 4, "check": "timeline_may_be_truncated rate < 2%", "value": round(rate, 4), "pass": rate < 0.02}
+    return [c1, c2, c3, c4]
+
+
+def explain(pr_id: str, table: pd.DataFrame, ctx: dict, frames: dict) -> str:
+    """Gate #5 support: print every feature of one PR with the rows/events behind it,
+    so a human can check them against the GitHub UI."""
+    rows, tier1, lab = ctx["rows"], ctx["tier1"], ctx["label_d5"]
+    r = table.set_index("pr_id").loc[pr_id]
+    src = rows.set_index("pr_id").loc[pr_id]
+    t, repo, author = src["created_at"], src["repo"], src["author_login"]
+    lines = [f"PR {pr_id}  {repo}#{int(r['number'])}  opened {t}  author={author!r}  is_slow={r['is_slow']}", ""]
+    lines.append("== features ==")
+    for c in feature_columns():
+        lines.append(f"  {c:<32} {r[c]}")
+    h = tier1[(tier1["repo"] == repo) & (tier1["created_at"] < t)].merge(
+        lab[["pr_id", "first_event_at", "is_slow"]], on="pr_id", how="left")
+    lines += ["", f"== open backlog at t ({int(r['open_backlog_at_t'])}) == prior PRs open at {t}:"]
+    for _, x in h[h["closed_at"].isna() | (h["closed_at"] > t)].iterrows():
+        lines.append(f"  {x['pr_id']}  created {x['created_at']}  closed {x['closed_at']}")
+    lines += ["", f"== author history ({author!r}) == prior PRs by this author:"]
+    for _, x in h[h["author_login"] == author].iterrows():
+        lines.append(f"  {x['pr_id']}  created {x['created_at']}  merged {x['merged_at']}  "
+                     f"first_event {x['first_event_at']}  is_slow {x['is_slow']}")
+    lo = t - pd.Timedelta(days=90)
+    lines += ["", f"== trailing 90d window [{lo} .. {t}) == labelled prior PRs:"]
+    for _, x in h[(h["created_at"] >= lo) & h["is_slow"].notna()].iterrows():
+        lines.append(f"  {x['pr_id']}  created {x['created_at']}  first_event {x['first_event_at']}  is_slow {x['is_slow']}")
+    tl = frames["timeline"]
+    ev = tl[tl["pr_id"] == pr_id].sort_values("created_at") if not tl.empty else tl
+    lines += ["", f"== timeline events ({len(ev)}) =="]
+    for _, e in ev.iterrows():
+        extra = e.get("previous_title") or e.get("previous_ref") or e.get("requested_reviewer_type") or ""
+        lines.append(f"  {e['created_at']}  {e['event_type']}  {extra}")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(OUT))
+    ap.add_argument("--audit", action="store_true", help="run the Phase 3 gate (1-4) on the built table")
+    ap.add_argument("--explain", metavar="PR_ID", help="print one PR's features with their evidence")
+    ap.add_argument("--n", type=int, default=500, help="audit sample size")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
-    table, _ = build()
+
+    kept = cohort_qc.kept_repos()
+    frames = load.load_all(kept)
+    table, ctx = build(kept, frames)
+
+    if args.explain:
+        print(explain(args.explain, table, ctx, frames))
+        return 0
+    if args.audit:
+        checks = audit(table, ctx, n=args.n)
+        GATE_JSON.parent.mkdir(parents=True, exist_ok=True)
+        GATE_JSON.write_text(json.dumps(checks, indent=2, default=str), encoding="utf-8")
+        for c in checks:
+            print(f"  [{c['id']}] {'PASS' if c['pass'] else 'FAIL'}  {c['check']}  -> {c['value']}")
+        ok = all(c["pass"] for c in checks)
+        print(f"gate 1-4: {'PASS' if ok else 'FAIL'}  (gate 5 is the manual --explain spot-check)")
+        return 0 if ok else 1
+
     write_table(table, Path(args.out))
     print(f"wrote {len(table):,} rows x {len(table.columns)} cols to {args.out}")
     return 0

@@ -259,3 +259,34 @@ def test_write_table_roundtrip(frames_toy, tmp_path):
     import pyarrow.parquet as pq
     meta = pq.read_metadata(p).metadata
     assert b"built_at" in meta and b"git_sha" in meta
+
+
+def test_audit_passes_on_toy(frames_toy):
+    table, ctx = features.build(kept=["o/r", "o/s"], frames=frames_toy)
+    checks = features.audit(table, ctx, n=6, expected_rows=6)
+    assert [c["id"] for c in checks] == [1, 2, 3, 4]
+    assert all(c["pass"] for c in checks), checks
+    assert checks[1]["value"]["n"] == 6 and checks[1]["value"]["max_abs_diff"] < 1e-9
+
+
+def test_audit_detects_replay_drift(frames_toy):
+    table, ctx = features.build(kept=["o/r", "o/s"], frames=frames_toy)
+    table = table.copy()
+    table.loc[table["pr_id"] == "r4", "n_prior_prs_here"] += 1      # simulate a leak/drift
+    checks = features.audit(table, ctx, n=6, expected_rows=6)
+    assert checks[1]["pass"] is False and "LEAK" in checks[1]["check"]
+
+
+def test_audit_row_count_and_nan(frames_toy):
+    table, ctx = features.build(kept=["o/r", "o/s"], frames=frames_toy)
+    assert features.audit(table, ctx, n=6, expected_rows=7)[0]["pass"] is False
+    bad = table.copy(); bad.loc[0, "open_backlog_at_t"] = np.nan
+    assert features.audit(bad, ctx, n=6, expected_rows=6)[2]["pass"] is False
+
+
+def test_explain_mentions_contributing_prs(frames_toy):
+    table, ctx = features.build(kept=["o/r", "o/s"], frames=frames_toy)
+    txt = features.explain("r4", table, ctx, frames_toy)
+    assert "r4" in txt and "n_prior_prs_here" in txt
+    assert "r1" in txt and "r2" in txt           # author a's prior PRs are listed
+    assert "r3" in txt                            # the open-backlog contributor
