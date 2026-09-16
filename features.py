@@ -138,6 +138,70 @@ def static_features(prs: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Group 2: at-open reconstruction (reverse replay from the current snapshot)
+#
+# The PR object holds CURRENT state. Timeline events are timestamped, so the state at
+# open is recoverable by undoing every post-open event. Draft state flips on each
+# Ready/ConvertToDraft event, so parity of post-open flips decides it; label count
+# subtracts post-open adds and re-adds post-open removals; title and base use the
+# previous_* value of the EARLIEST post-open change.
+# ---------------------------------------------------------------------------
+
+def at_open_features(prs: pd.DataFrame, timeline: pd.DataFrame,
+                     repo_meta: pd.DataFrame) -> pd.DataFrame:
+    p = prs.set_index("pr_id")
+    idx = p.index
+
+    if timeline.empty:
+        tl = pd.DataFrame(columns=["pr_id", "event_type", "created_at", "previous_title",
+                                   "previous_ref", "requested_reviewer_type", "pr_created_at"])
+    else:
+        tl = timeline.merge(p[["created_at"]].rename(columns={"created_at": "pr_created_at"}),
+                            left_on="pr_id", right_index=True, how="inner")
+    post = tl[tl["created_at"] > tl["pr_created_at"]]
+
+    def count(frame, types):
+        return frame[frame["event_type"].isin(types)].groupby("pr_id").size().reindex(idx, fill_value=0)
+
+    def earliest_prev(types, col):
+        f = post[post["event_type"].isin(types)].sort_values("created_at")
+        return f.groupby("pr_id")[col].first().reindex(idx)
+
+    flips = count(post, ["ReadyForReviewEvent", "ConvertToDraftEvent"])
+    is_draft_current = (p["is_draft_current"] == True)                                   # noqa: E712
+    is_draft_at_open = is_draft_current ^ (flips % 2 == 1)
+
+    n_labels_at_open = (p["n_labels_current"].fillna(0).astype(int)
+                        - count(post, ["LabeledEvent"]) + count(post, ["UnlabeledEvent"])).clip(lower=0)
+
+    title_at_open = earliest_prev(["RenamedTitleEvent"], "previous_title").fillna(p["title_current"]).fillna("")
+    base_at_open = earliest_prev(["BaseRefChangedEvent"], "previous_ref").fillna(p["base_ref_current"])
+    default_branch = p["repo"].map(repo_meta.set_index("repo")["default_branch"])
+
+    grace = tl["created_at"] <= tl["pr_created_at"] + REVIEW_REQUEST_GRACE
+    rr = tl[(tl["event_type"] == "ReviewRequestedEvent") & grace]
+    n_rr = rr.groupby("pr_id").size().reindex(idx, fill_value=0)
+    team = rr[rr["requested_reviewer_type"] == "Team"].groupby("pr_id").size().reindex(idx, fill_value=0)
+
+    n_rows = tl.groupby("pr_id").size().reindex(idx, fill_value=0)
+
+    return pd.DataFrame({
+        "is_draft_at_open": is_draft_at_open.astype(bool),
+        "n_labels_at_open": n_labels_at_open.astype(int),
+        "title_len_at_open": title_at_open.astype(str).str.len().astype(int),
+        "base_is_default": (base_at_open == default_branch).astype(bool),
+        "reviewer_requested_at_open": (n_rr > 0).astype(bool),
+        "n_reviewers_requested_at_open": n_rr.astype(int),
+        "requested_team_at_open": (team > 0).astype(bool),
+        "additions_at_open": p["additions_at_open"].astype(float),
+        "deletions_at_open": p["deletions_at_open"].astype(float),
+        "n_commits_at_open": p["n_commits_at_open"].astype(float),
+        "diff_is_exact": (p["diff_is_exact"] == True).astype(bool),                      # noqa: E712
+        "timeline_may_be_truncated": (n_rows >= TIMELINE_CAP).astype(bool),
+    }, index=idx)
+
+
+# ---------------------------------------------------------------------------
 # Group 4: repo-level
 # ---------------------------------------------------------------------------
 
