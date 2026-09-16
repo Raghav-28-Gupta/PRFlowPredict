@@ -51,7 +51,14 @@ def test_unsorted_input_is_sorted(replay_toy):
     a = replay.History.from_frames("r", tier1, labels, WS)
     b = replay.History.from_frames("r", shuffled, labels, WS)
     t = pd.Timestamp("2024-04-21", tz="UTC")
-    assert a.features_at(t, 0.5) == b.features_at(t, 0.5)
+    fa, fb = a.features_at(t, 0.5), b.features_at(t, 0.5)
+    assert fa.keys() == fb.keys()
+    for k in fa:
+        va, vb = fa[k], fb[k]
+        if isinstance(va, float) and np.isnan(va):
+            assert isinstance(vb, float) and np.isnan(vb)
+        else:
+            assert va == vb
 
 
 def test_brute_force_matches_features_at_on_toy(replay_toy):
@@ -77,3 +84,81 @@ def test_trailing_window_excludes_old_labelled_rows():
     f = hist.features_at(ts("2024-06-01"), global_rate=0.5)  # OLD is 152 days old
     assert f["trailing_n"] == 1                               # outside the 90-day window
     assert f["open_backlog_at_t"] == 2                        # but still in the backlog
+
+
+T = pd.Timestamp("2024-04-21", tz="UTC")
+G, GM = 0.5, 0.4
+
+
+def _feat(replay_toy, author):
+    tier1, labels = replay_toy
+    hist = replay.History.from_frames("r", tier1, labels, WS)
+    return hist.features_at(T, G, GM, author=author)
+
+
+def test_trailing_7d_count(replay_toy):
+    assert _feat(replay_toy, None)["prs_opened_trailing_7d"] == 2
+
+
+def test_author_u1_history(replay_toy):
+    f = _feat(replay_toy, "u1")
+    assert f["is_first_pr_here"] is False
+    assert f["n_prior_prs_here"] == 2 and f["n_prior_merged_here"] == 0
+    assert f["prior_merge_rate_here"] == pytest.approx(2.0 / 7)
+    assert f["days_since_first_pr_here"] == pytest.approx(51.0)
+    assert f["author_prior_n"] == 2
+    assert f["author_prior_slow_rate_here"] == pytest.approx(2.5 / 7)
+
+
+def test_author_u2_merged_before_t_counts(replay_toy):
+    f = _feat(replay_toy, "u2")
+    assert f["n_prior_prs_here"] == 1 and f["n_prior_merged_here"] == 1
+    assert f["prior_merge_rate_here"] == pytest.approx(3.0 / 6)
+    assert f["author_prior_slow_rate_here"] == pytest.approx(3.5 / 6)
+
+
+def test_author_u0_merged_after_t_does_not_count(replay_toy):
+    f = _feat(replay_toy, "u0")
+    assert f["n_prior_prs_here"] == 1 and f["n_prior_merged_here"] == 0
+    assert f["prior_merge_rate_here"] == pytest.approx(2.0 / 6)
+    assert f["author_prior_n"] == 0 and f["author_prior_slow_rate_here"] == pytest.approx(G)
+
+
+def test_unseen_and_deleted_author_get_first_pr_values(replay_toy):
+    for a in ("zz", None):
+        f = _feat(replay_toy, a)
+        assert f["is_first_pr_here"] is True
+        assert f["n_prior_prs_here"] == 0 and f["n_prior_merged_here"] == 0
+        assert np.isnan(f["days_since_first_pr_here"])
+        assert f["prior_merge_rate_here"] == pytest.approx(GM)
+        assert f["author_prior_slow_rate_here"] == pytest.approx(G)
+
+
+def test_author_without_merge_rate_raises(replay_toy):
+    tier1, labels = replay_toy
+    hist = replay.History.from_frames("r", tier1, labels, WS)
+    with pytest.raises(ValueError):
+        hist.features_at(T, G, author="u1")
+
+
+def test_phase2_keys_unchanged_by_author(replay_toy):
+    a = _feat(replay_toy, None)
+    b = _feat(replay_toy, "u1")
+    for k in ("open_backlog_at_t", "trailing_90d_slow_rate", "trailing_n",
+              "trailing_window_complete"):
+        assert a[k] == b[k]
+
+
+def test_brute_force_matches_all_keys(replay_toy):
+    tier1, labels = replay_toy
+    hist = replay.History.from_frames("r", tier1, labels, WS)
+    for t in (T, pd.Timestamp("2024-02-01", tz="UTC"), pd.Timestamp("2024-07-01", tz="UTC")):
+        for author in (None, "u0", "u1", "u2", "zz"):
+            a = hist.features_at(t, G, GM, author=author)
+            b = replay.brute_force_features(tier1, labels, "r", t, G,
+                                            global_merge_rate=GM, author=author)
+            for k in replay.REPLAY_KEYS:
+                if isinstance(a[k], float) and np.isnan(a[k]):
+                    assert np.isnan(b[k]), (t, author, k)
+                else:
+                    assert a[k] == pytest.approx(b[k]), (t, author, k)

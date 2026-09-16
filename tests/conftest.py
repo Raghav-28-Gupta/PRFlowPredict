@@ -74,6 +74,19 @@ def replay_toy():
                        P1 (3-01<=thr) yes, P2 yes, P3 (4-15>thr but fe 4-16<t) yes, P4 no
                        -> k=3, n_slow=1 -> (1 + 5*0.5)/(3+5) = 0.4375
       complete       = lo >= window_start -> True
+
+      merged_at: P0 2024-06-01, P2 2024-03-20, others NaT (coherent with closed_at).
+      prs_opened_trailing_7d @t = P3 (4-15), P4 (4-19)            = 2
+
+      Author history @t=2024-04-21, alpha=5, g=0.5, g_merge=0.4:
+        u1: prior P1,P3 -> n=2; merged 0 -> rate (0+2.0)/7 = 0.285714
+            days_since_first = 4-21 - 3-01 = 51
+            slow: P1 (0, resolvable), P3 (0, fe 4-16<t) -> k=2, n_slow 0 -> (0+2.5)/7 = 0.357143
+        u2: prior P2 -> n=1; merged 1 (3-20 < t) -> (1+2.0)/6 = 0.5; days 42
+            slow: P2 (1, resolvable) -> k=1 -> (1+2.5)/6 = 0.583333
+        u0: prior P0 -> n=1; merged 0 (6-01 > t: NOT prior knowledge) -> (0+2.0)/6 = 0.333333
+            days = 325; slow: unlabelled -> k=0 -> 0.5 (prior)
+        zz (unseen) and None: first-PR values, days NaN, rates = priors
     """
     def ts(s): return pd.Timestamp(s, tz="UTC")
     tier1 = pd.DataFrame({
@@ -82,6 +95,7 @@ def replay_toy():
         "created_at": [ts("2023-06-01"), ts("2024-03-01"), ts("2024-03-10"),
                        ts("2024-04-15"), ts("2024-04-19")],
         "closed_at": [ts("2024-06-01"), pd.NaT, ts("2024-03-20"), pd.NaT, pd.NaT],
+        "merged_at": [ts("2024-06-01"), pd.NaT, ts("2024-03-20"), pd.NaT, pd.NaT],
         "author_login": ["u0", "u1", "u2", "u1", "u3"],
     })
     labels = pd.DataFrame({
