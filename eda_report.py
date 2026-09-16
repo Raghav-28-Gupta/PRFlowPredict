@@ -24,6 +24,7 @@ ROOT = Path(__file__).parent
 DOC = ROOT / "docs" / "phase2_eda.md"
 FIG = ROOT / "figures"
 GATE_JSON = ROOT / "data" / "phase2_gate.json"
+ROWS_JSON = ROOT / "data" / "phase2_rows.json"
 THRESHOLDS = [72, 120, 168, 240]
 
 
@@ -143,6 +144,8 @@ def main() -> int:
 
     # 6. baseline
     rows = splits.prepare_rows(frames["pr_tier2"], lab, kept)
+    ROWS_JSON.write_text(json.dumps({"n_rows": int(len(rows)), "n_repos": int(rows["repo"].nunique()),
+                                     "kept": sorted(kept)}, indent=2), encoding="utf-8")
     tr_a, te_a = splits.scenario_a(rows)
     folds_b = splits.scenario_b(rows)
     base_rows = baseline.evaluate("A", rows, [(tr_a, te_a)], frames["pr_tier1"], lab)

@@ -290,3 +290,9 @@ def test_explain_mentions_contributing_prs(frames_toy):
     assert "r4" in txt and "n_prior_prs_here" in txt
     assert "r1" in txt and "r2" in txt           # author a's prior PRs are listed
     assert "r3" in txt                            # the open-backlog contributor
+
+
+def test_audit_check1_names_its_source(frames_toy):
+    table, ctx = features.build(kept=["o/r", "o/s"], frames=frames_toy)
+    assert "Phase 2" in features.audit(table, ctx, n=6, expected_rows=6)[0]["check"]
+    assert "INTERNAL" in features.audit(table, ctx, n=6)[0]["check"]

@@ -34,6 +34,7 @@ log = logging.getLogger("features")
 ROOT = Path(__file__).parent
 OUT = ROOT / "data" / "features" / "features.parquet"
 GATE_JSON = ROOT / "data" / "phase3_gate.json"
+PHASE2_ROWS = ROOT / "data" / "phase2_rows.json"
 DICT_MD = ROOT / "docs" / "feature_dictionary.md"
 
 SEED = 20260912
@@ -322,10 +323,12 @@ def audit(table: pd.DataFrame, ctx: dict, n: int = 500, seed: int = SEED,
           expected_rows: int | None = None) -> list[dict]:
     rows, tier1, lab, g, g_merge = ctx["rows"], ctx["tier1"], ctx["label_d5"], ctx["g"], ctx["g_merge"]
 
-    # 1. row conservation
+    # 1. row conservation -- cross-phase when expected_rows (Phase 2's independent count)
+    # is supplied, internal-only (can only catch a join bug, not Phase 2 vs 3 drift) otherwise
     exp = expected_rows if expected_rows is not None else len(rows)
-    c1 = {"id": 1, "check": "row count == modelling rows for kept repos", "value": [len(table), exp],
-          "pass": len(table) == exp}
+    c1_check = ("row count == Phase 2 modelling rows (data/phase2_rows.json)" if expected_rows is not None
+               else "row count == build() rows (INTERNAL ONLY -- phase2_rows.json absent)")
+    c1 = {"id": 1, "check": c1_check, "value": [len(table), exp], "pass": len(table) == exp}
 
     # 2. brute-force audit of every replay column -- the leakage hard stop
     sample = table.sample(n=min(n, len(table)), random_state=seed)
@@ -339,7 +342,7 @@ def audit(table: pd.DataFrame, ctx: dict, n: int = 500, seed: int = SEED,
                                         global_merge_rate=g_merge, author=a)
         for k in AUDIT_KEYS:
             x, y = r[k], b[k]
-            if isinstance(x, (bool, np.bool_)) or isinstance(y, bool):
+            if isinstance(x, (bool, np.bool_)) or isinstance(y, (bool, np.bool_)):
                 d = 0.0 if bool(x) == bool(y) else 1.0
             elif (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
                 d = 0.0 if (isinstance(x, float) and np.isnan(x) and isinstance(y, float) and np.isnan(y)) else 1.0
@@ -373,17 +376,29 @@ def explain(pr_id: str, table: pd.DataFrame, ctx: dict, frames: dict) -> str:
         lines.append(f"  {c:<32} {r[c]}")
     h = tier1[(tier1["repo"] == repo) & (tier1["created_at"] < t)].merge(
         lab[["pr_id", "first_event_at", "is_slow"]], on="pr_id", how="left")
+    thr = t - pd.Timedelta(hours=168)
+
+    def resolvable(x):
+        return bool(x["created_at"] <= thr or (pd.notna(x["first_event_at"]) and x["first_event_at"] < t))
+
     lines += ["", f"== open backlog at t ({int(r['open_backlog_at_t'])}) == prior PRs open at {t}:"]
     for _, x in h[h["closed_at"].isna() | (h["closed_at"] > t)].iterrows():
         lines.append(f"  {x['pr_id']}  created {x['created_at']}  closed {x['closed_at']}")
-    lines += ["", f"== author history ({author!r}) == prior PRs by this author:"]
+    lines += ["", f"== prs opened in trailing 7d ({int(r['prs_opened_trailing_7d'])}) == "
+                 f"prior PRs with created_at >= {t - pd.Timedelta(days=7)}:"]
+    for _, x in h[h["created_at"] >= t - pd.Timedelta(days=7)].iterrows():
+        lines.append(f"  {x['pr_id']}  created {x['created_at']}")
+    lines += ["", f"== author history ({author!r}) == prior PRs by this author "
+                 f"(counted toward author rate = {int(r['author_prior_n'])}):"]
     for _, x in h[h["author_login"] == author].iterrows():
+        tag = "[counted]" if (pd.notna(x["is_slow"]) and resolvable(x)) else "[not yet resolvable]"
         lines.append(f"  {x['pr_id']}  created {x['created_at']}  merged {x['merged_at']}  "
-                     f"first_event {x['first_event_at']}  is_slow {x['is_slow']}")
+                     f"first_event {x['first_event_at']}  is_slow {x['is_slow']}  {tag}")
     lo = t - pd.Timedelta(days=90)
-    lines += ["", f"== trailing 90d window [{lo} .. {t}) == labelled prior PRs:"]
+    lines += ["", f"== trailing 90d window [{lo} .. {t}) == labelled prior PRs (counted = {int(r['trailing_n'])}):"]
     for _, x in h[(h["created_at"] >= lo) & h["is_slow"].notna()].iterrows():
-        lines.append(f"  {x['pr_id']}  created {x['created_at']}  first_event {x['first_event_at']}  is_slow {x['is_slow']}")
+        tag = "[counted]" if resolvable(x) else "[not yet resolvable]"
+        lines.append(f"  {x['pr_id']}  created {x['created_at']}  first_event {x['first_event_at']}  is_slow {x['is_slow']}  {tag}")
     tl = frames["timeline"]
     ev = tl[tl["pr_id"] == pr_id].sort_values("created_at") if not tl.empty else tl
     lines += ["", f"== timeline events ({len(ev)}) =="]
@@ -410,7 +425,13 @@ def main(argv: list[str] | None = None) -> int:
         print(explain(args.explain, table, ctx, frames))
         return 0
     if args.audit:
-        checks = audit(table, ctx, n=args.n)
+        expected = None
+        if PHASE2_ROWS.exists():
+            expected = int(json.loads(PHASE2_ROWS.read_text(encoding="utf-8"))["n_rows"])
+        else:
+            log.warning("no %s -- check #1 is internal-only (run eda_report.py first for a cross-phase check)",
+                       PHASE2_ROWS)
+        checks = audit(table, ctx, n=args.n, expected_rows=expected)
         GATE_JSON.parent.mkdir(parents=True, exist_ok=True)
         GATE_JSON.write_text(json.dumps(checks, indent=2, default=str), encoding="utf-8")
         for c in checks:
