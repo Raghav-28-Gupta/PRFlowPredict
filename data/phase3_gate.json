@@ -1,0 +1,33 @@
+[
+  {
+    "id": 1,
+    "check": "row count == Phase 2 modelling rows (data/phase2_rows.json)",
+    "value": [
+      38462,
+      38462
+    ],
+    "pass": true
+  },
+  {
+    "id": 2,
+    "check": "replay audit: brute-force recomputation of every replay column matches (else replay LEAKS)",
+    "value": {
+      "n": 500,
+      "max_abs_diff": 0.0,
+      "worst": null
+    },
+    "pass": true
+  },
+  {
+    "id": 3,
+    "check": "no NaN outside documented-nullable columns",
+    "value": {},
+    "pass": true
+  },
+  {
+    "id": 4,
+    "check": "timeline_may_be_truncated rate < 2%",
+    "value": 0.0005,
+    "pass": true
+  }
+]

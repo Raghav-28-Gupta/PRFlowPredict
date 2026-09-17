@@ -1,0 +1,41 @@
+[
+  {
+    "id": 1,
+    "check": "repos kept after QC >= 30",
+    "value": 39,
+    "pass": true
+  },
+  {
+    "id": 2,
+    "check": "D5 global is_slow in [10%, 70%]",
+    "value": 0.4639,
+    "pass": true
+  },
+  {
+    "id": 3,
+    "check": "Scenario A: >= 20 test repos with >= 10 test PRs",
+    "value": 34,
+    "pass": true
+  },
+  {
+    "id": 4,
+    "check": "Scenario B: every fold holds out >= 6 repos",
+    "value": 6,
+    "pass": true
+  },
+  {
+    "id": 5,
+    "check": "replay audit: brute-force recomputation matches features_at on sampled test rows (else replay LEAKS)",
+    "value": [
+      {
+        "n": 200,
+        "max_abs_diff_rate": 0.0
+      },
+      {
+        "n": 200,
+        "max_abs_diff_rate": 0.0
+      }
+    ],
+    "pass": true
+  }
+]

@@ -304,7 +304,8 @@ def tier2_rows(node: dict, repo: str, stats: Stats) -> dict[str, Any]:
         if c.get("commit") and c["commit"].get("authoredDate")
         and created_at and c["commit"]["authoredDate"] <= created_at
     ]
-    diff_is_exact = commits_total == 1 and not truncated
+    # exact only if that single commit is actually visible at open
+    diff_is_exact = commits_total == 1 and not truncated and bool(at_open)
 
     pr = {
         "repo": repo,
@@ -336,9 +337,12 @@ def tier2_rows(node: dict, repo: str, stats: Stats) -> dict[str, Any]:
         "changed_files_final": node.get("changedFiles"),
 
         # --- at-open reconstruction ---
-        "additions_at_open": sum(c.get("additions") or 0 for c in at_open) or None,
-        "deletions_at_open": sum(c.get("deletions") or 0 for c in at_open) or None,
-        "n_commits_at_open": len(at_open) or None,
+        # None means UNKNOWN (no commit authored at/before open), never "zero". A
+        # pure-deletion PR legitimately has 0 additions at open. `x or None` was
+        # collapsing those zeros to None -- found by the Phase 3 spot-check.
+        "additions_at_open": sum(c.get("additions") or 0 for c in at_open) if at_open else None,
+        "deletions_at_open": sum(c.get("deletions") or 0 for c in at_open) if at_open else None,
+        "n_commits_at_open": len(at_open) if at_open else None,
         "diff_is_exact": diff_is_exact,
 
         # --- genuinely point-in-time safe ---

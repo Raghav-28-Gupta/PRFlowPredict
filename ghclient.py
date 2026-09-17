@@ -234,7 +234,10 @@ class GitHubGraphQL:
             # Secondary limit. Retryable, and the server usually tells us how long.
             raise TransientError(f"secondary rate limit (HTTP {status})",
                                  retry_after=wait or 60.0, kind="ratelimit")
-        if status in (500, 502, 503, 504):
+        # 499 is a proxy's "client closed request" (observed live on rilldata/rill mid-run)
+        # and 408 is request timeout -- both transient, neither standard enough to be in
+        # the 5xx family.
+        if status in (408, 499, 500, 502, 503, 504):
             raise TransientError(f"server error HTTP {status}", retry_after=wait,
                                  kind="internal")
         if status in (401, 403):
