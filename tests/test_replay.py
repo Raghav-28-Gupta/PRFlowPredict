@@ -115,6 +115,7 @@ def test_author_u2_merged_before_t_counts(replay_toy):
     assert f["n_prior_prs_here"] == 1 and f["n_prior_merged_here"] == 1
     assert f["prior_merge_rate_here"] == pytest.approx(3.0 / 6)
     assert f["author_prior_slow_rate_here"] == pytest.approx(3.5 / 6)
+    assert f["days_since_first_pr_here"] == pytest.approx(42.0)
 
 
 def test_author_u0_merged_after_t_does_not_count(replay_toy):

@@ -298,6 +298,27 @@ def test_audit_check1_names_its_source(frames_toy):
     assert "INTERNAL" in features.audit(table, ctx, n=6)[0]["check"]
 
 
+def test_event_at_exactly_created_at_is_at_open_not_post_open():
+    t0 = ts("2025-01-01T00:00")
+    prs = pd.DataFrame({"repo": ["o/r"], "pr_id": ["X"], "created_at": [t0],
+                        "is_draft_current": [False], "n_labels_current": [1],
+                        "title_current": ["t"], "base_ref_current": ["main"],
+                        "additions_at_open": [1.0], "deletions_at_open": [0.0],
+                        "n_commits_at_open": [1.0], "diff_is_exact": [True]})
+    # Both events are stamped AT open: a label applied by automation and a ready-for-review.
+    # Neither is post-open, so neither must be undone: label count stays 1, draft stays False.
+    timeline = pd.DataFrame([
+        ("X", "LabeledEvent", t0, None, None, None),
+        ("X", "ReadyForReviewEvent", t0, None, None, None),
+        ("X", "ReviewRequestedEvent", t0, None, None, "User"),   # at-open request DOES count
+    ], columns=["pr_id", "event_type", "created_at", "previous_title", "previous_ref", "requested_reviewer_type"])
+    repo_meta = pd.DataFrame({"repo": ["o/r"], "default_branch": ["main"]})
+    a = features.at_open_features(prs, timeline, repo_meta)
+    assert a.loc["X", "n_labels_at_open"] == 1
+    assert a.loc["X", "is_draft_at_open"] == False   # noqa: E712
+    assert a.loc["X", "reviewer_requested_at_open"] == True   # noqa: E712
+
+
 def test_dictionary_lists_every_column_once():
     md = features.render_dictionary()
     for c in features.COLUMN_SPEC:

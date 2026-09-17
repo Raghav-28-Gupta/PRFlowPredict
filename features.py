@@ -389,6 +389,12 @@ def render_dictionary() -> str:
         "Priors for shrinkage (`g` = D5 slow rate, `g_merge` = merge rate) are computed over Scenario A training rows",
         "(`created_at < 2026-01-01`) once at build time; a per-fold recomputation for Scenario B shifts an α=5 shrunk rate negligibly.",
         "",
+        "**Caveats for Phase 4, from the Phase 3 whole-branch review:**",
+        "",
+        "1. `timeline_may_be_truncated` rows (~0.05%) are biased *toward the current state*, not merely noisy: GraphQL's `first:60` cap drops the LATEST events, so an early post-open change can be counted while its later undo is missed. Drop or down-weight these rows; do not treat the flag as purely diagnostic.",
+        "2. `snapshot` columns broadcast HEAD-at-collection repo state to every historical row of that repo. A repo that acquired maintainers/CODEOWNERS *because* it reviews well carries that culture into its earliest PRs' features. State this in the model card; expect these to flatter offline metrics relative to true cold-start deployment.",
+        "3. Shrinkage priors `g`/`g_merge` are fixed at Scenario A training values. Sensitivity is `α/(k+α)`: a 0.10 shift in `g` moves a shrunk rate by 0.10 at k=0 (first-time authors), 0.05 at k=5, ~0.01 at k=45. Scenario B users may recompute per fold if they want to be strict.",
+        "",
         "| Column | Group | Status | Type | Nullable | Derivation |",
         "|---|---|---|---|---|---|",
     ]
