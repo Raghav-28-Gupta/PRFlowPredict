@@ -15,3 +15,6 @@ __pycache__/
 # scratch
 *.tmp
 *__resume_backup/
+
+# built feature table: regenerable via `python features.py`
+data/features/
