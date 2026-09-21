@@ -18,3 +18,7 @@ __pycache__/
 
 # built feature table: regenerable via `python features.py`
 data/features/
+
+# Phase 4 model artefacts: regenerable via `python tune.py && python experiment.py`
+data/models/
+data/predictions/

@@ -17,3 +17,7 @@ matplotlib==3.10.8      # gate report: wait-time histogram, unreviewed-fraction 
 scikit-learn==1.9.1     # GroupKFold, average_precision_score
 lifelines==0.30.3       # Kaplan-Meier with CI bands (EDA)
 pytest==8.4.1           # tests/
+
+# Phase 4
+lightgbm==4.7.0         # primary classifier (native API)
+optuna==5.0.0           # hyperparameter search on Scenario A training rows
