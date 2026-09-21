@@ -1,4 +1,5 @@
 import pytest
+import pandas as pd
 import features
 import featuresets as fs
 
@@ -36,3 +37,15 @@ def test_synthetic_table_shape(synthetic_table):
     t = synthetic_table()
     assert list(t.columns) == list(features.COLUMN_SPEC) and len(t) == 2000
     assert t["is_slow"].mean() > 0.1 and t["is_slow"].mean() < 0.9
+
+
+def test_synthetic_table_invariants(synthetic_table):
+    t = synthetic_table()
+    assert t["wait_h"].isna().equals(t["is_slow"])                       # NaN iff slow
+    assert (t["event_observed"] == ~t["is_slow"]).all()
+    assert (t["never_reviewed_30d"] == t["is_slow"]).all()
+    assert (t.loc[t["is_slow"], "wait_h_censored"] == 720.0).all()
+    assert (t.loc[~t["is_slow"], "wait_h_censored"] == t.loc[~t["is_slow"], "wait_h"]).all()
+    assert not t["timeline_may_be_truncated"].any()
+    assert (t["created_at"].min() < pd.Timestamp("2026-01-01", tz="UTC") < t["created_at"].max())
+    assert str(t["created_at"].dtype).startswith("datetime64[ns, UTC]")
