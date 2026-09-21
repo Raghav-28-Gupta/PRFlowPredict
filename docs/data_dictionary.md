@@ -56,6 +56,12 @@ Mitigating: in a 40-PR sample, 35 were single-commit, where the final diff **is*
 at-open diff exactly. The `diff_is_exact` column records which case each row is. Prefer
 filtering or weighting on it over silently mixing exact and approximated values.
 
+**Fixed 2026-09-21 (Phase 3 spot-check):** `parse.py` used `sum(...) or None`, which
+collapsed a legitimate 0 to None — every pure-deletion PR read `additions_at_open = NaN`
+and every pure-addition PR read `deletions_at_open = NaN`. Now None means only "no commit
+authored at or before open" (1,326 rows), and `diff_is_exact` additionally requires that
+commit to be visible at open. Re-parsed from raw; no re-scrape.
+
 ### 1.3 A point-in-time bug the blueprint's own leakage rule does not catch
 
 Blueprint §4 says repo-state features may use "only PRs strictly earlier than the row."

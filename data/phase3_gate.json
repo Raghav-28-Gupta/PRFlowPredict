@@ -29,5 +29,23 @@
     "check": "timeline_may_be_truncated rate < 2%",
     "value": 0.0005,
     "pass": true
+  },
+  {
+    "id": 5,
+    "check": "manual spot-check: 5 seeded rows verified against live GitHub (GraphQL + REST), 8 features each",
+    "value": {
+      "rows": [
+        "bastani-inc/atomic#970",
+        "metriport/metriport#2461",
+        "radixark/miles#784",
+        "icloud-photos-downloader/icloud_photos_downloader#861",
+        "crowdsecurity/crowdsec#2971"
+      ],
+      "checks": 40,
+      "matched": 40,
+      "note": "miles#784 backlog: live search said 109 vs ours 112; REST confirmed the 3 PRs (#316,#327,#328) were open at t -- search-index lossiness, our value correct",
+      "method": "API-verified by controller 2026-09-21; detail in data/phase3_gate5_live.json"
+    },
+    "pass": true
   }
 ]
