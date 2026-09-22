@@ -1,6 +1,7 @@
 import json
 import experiment as ex
 import model
+import splits
 import tune
 
 
@@ -28,3 +29,23 @@ def test_main_writes_params(synthetic_table, tmp_path, monkeypatch):
     assert tune.main(["--trials", "3", "--splits", "2"]) == 0
     out = json.loads((tmp_path / "params.json").read_text())
     assert "best_params" in out and out["n_trials"] == 3
+
+
+def test_tune_never_sees_test_period_or_scenario_b_repos(synthetic_table, monkeypatch):
+    """The cold-start claim rests on tuning seeing ONLY Scenario A training rows."""
+    import pandas as pd
+    t = ex.load_table_frame(synthetic_table())
+    seen = {}
+
+    real_cv = tune.cv_score
+
+    def spy(X, y, params, n_splits=3):
+        seen["max_created"] = t.loc[X.index, "created_at"].max()
+        seen["n"] = len(X)
+        return real_cv(X, y, params, n_splits)
+
+    monkeypatch.setattr(tune, "cv_score", spy)
+    tune.tune(t, n_trials=2, seed=1, n_splits=2)
+    assert seen["max_created"] < splits.CUTOFF_A            # no test-period row reached tuning
+    tr, te = ex.folds_for("A", t)[0]
+    assert seen["n"] == len(tr)                              # exactly the capped training rows

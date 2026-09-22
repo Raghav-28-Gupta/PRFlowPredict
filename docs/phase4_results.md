@@ -30,6 +30,8 @@ Params (frozen for every scenario, fold and ablation — ablations are therefore
 }
 ```
 
+**Reading the two metrics.** AUC-PR here is global across all test rows, so it rewards separating *repos* — and the trailing-rate baseline does that very well (a repo that was slow last quarter is usually slow this quarter), which is why its AUC-PR is already high. Precision@10 ranks the top 10 *within each repo*, where the trailing rate is near-constant and therefore close to a random draw. The two metrics answer different questions: AUC-PR asks "which PRs across the cohort are slow", P@10 asks "which of *this team's* PRs should I chase" — the product question.
+
 ## 2. Scenario A (known-project, time cutoff 2026-01-01)
 
 | featureset | precision_at_10 | p10_ci_lo | p10_ci_hi | baseline_p10 | base_rate_p10 | auc_pr | baseline_auc_pr |
@@ -60,7 +62,7 @@ FULL per fold:
 
 ## 4. Headline
 
-On Scenario A, the FULL model's within-repo Precision@10 is **0.769** [0.669, 0.856] against the trailing-rate baseline's 0.585 (**+0.185**; the CI excludes the baseline) and the base rate 0.641 (+0.129; the CI excludes the base rate). AUC-PR 0.906 vs baseline 0.887. On Scenario B (cold-start), FULL averages P@10 0.796 vs baseline 0.632, AUC-PR 0.859 vs 0.821 — an A→B P@10 gap of -0.027. That A→B comparison is **not** like-for-like: Precision@10 ranks the top 10 *per repo*, and Scenario A draws them from a median of 64 test PRs over 6 months (5 of 39 repos have fewer than 10 test PRs at all, and only 32/39 have 10 slow PRs available, so P@10 = 1.0 is unattainable for 7 of them), while Scenario B draws from a median of 433 over 30 months (39/39 attainable). Ranking the 10 slowest out of a larger pool is easier, so B's higher P@10 is substantially a pool-size artifact and must not be read as cold-start transfer being easy — for that comparison use AUC-PR, which does not depend on pool size, and the per-fold detail below. The blueprint's bar was a clear margin over the baseline on A (5–10 points); that bar is met.
+On Scenario A, the FULL model's within-repo Precision@10 is **0.769** [0.669, 0.856] against the trailing-rate baseline's 0.585 (**+0.185**; the CI excludes the baseline) and the base rate 0.641 (+0.129; the CI excludes the base rate). AUC-PR 0.906 vs baseline 0.887. On Scenario B (cold-start), FULL averages P@10 0.796 vs baseline 0.632, AUC-PR 0.859 vs 0.821 — an A→B P@10 gap of -0.027. That A→B comparison is **not** like-for-like: Precision@10 ranks the top 10 *per repo*, and Scenario A draws them from a median of 64 test PRs over 6 months (5 of 39 repos have fewer than 10 test PRs at all, and only 32/39 have 10 slow PRs available, so P@10 = 1.0 is unattainable for 7 of them), while Scenario B draws from a median of 433 over 30 months (39/39 attainable). Ranking the 10 slowest out of a larger pool is easier, so B's higher P@10 is substantially a pool-size artifact and must not be read as cold-start transfer being easy — for that comparison use AUC-PR, which does not depend on pool size, and the per-fold detail below. The blueprint's bar was a clear margin over the baseline on A (5–10 points); that bar is met. Robustness: the +0.185 advantage is not driven by a few large repos — weighting each repo by its test-row count gives +0.194 across 39 repos.
 
 ## 4b. Are A and B comparable?
 
@@ -73,16 +75,18 @@ Precision@10 is a within-repo top-k metric, so it is sensitive to how many candi
 
 ## 5. Ablations (Δ vs FULL, same scenario)
 
-| scenario | featureset | precision_at_10 | d_p10_vs_FULL | auc_pr | d_auc_pr_vs_FULL |
-|---|---|---|---|---|---|
-| A | FULL | 0.769 | 0.000 | 0.906 | 0.000 |
-| A | NO_SNAPSHOT | 0.744 | -0.026 | 0.908 | 0.002 |
-| A | NO_LABEL_REPLAY | 0.767 | -0.003 | 0.902 | -0.004 |
-| A | PR_ONLY | 0.731 | -0.038 | 0.729 | -0.177 |
-| B | FULL | 0.796 | 0.000 | 0.859 | 0.000 |
-| B | NO_SNAPSHOT | 0.804 | 0.008 | 0.853 | -0.006 |
-| B | NO_LABEL_REPLAY | 0.699 | -0.097 | 0.763 | -0.095 |
-| B | PR_ONLY | 0.609 | -0.187 | 0.556 | -0.303 |
+| scenario | featureset | precision_at_10 | baseline_p10 | d_p10_vs_FULL | auc_pr | baseline_auc_pr | d_auc_pr_vs_FULL |
+|---|---|---|---|---|---|---|---|
+| A | FULL | 0.769 | 0.585 | 0.000 | 0.906 | 0.887 | 0.000 |
+| A | NO_SNAPSHOT | 0.744 | 0.585 | -0.026 | 0.908 | 0.887 | 0.002 |
+| A | NO_LABEL_REPLAY | 0.767 | 0.585 | -0.003 | 0.902 | 0.887 | -0.004 |
+| A | PR_ONLY | 0.731 | 0.585 | -0.038 | 0.729 | 0.887 | -0.177 |
+| B | FULL | 0.796 | 0.632 | 0.000 | 0.859 | 0.821 | 0.000 |
+| B | NO_SNAPSHOT | 0.804 | 0.632 | 0.008 | 0.853 | 0.821 | -0.006 |
+| B | NO_LABEL_REPLAY | 0.699 | 0.632 | -0.097 | 0.763 | 0.821 | -0.095 |
+| B | PR_ONLY | 0.609 | 0.632 | -0.187 | 0.556 | 0.821 | -0.303 |
+
+**Scenario A:** stripped of the label-replay features, the model scores AUC-PR 0.902 against the baseline's 0.887 (+0.015) and P@10 0.767 vs 0.585 (+0.182) — it still beats the baseline on AUC-PR. **Scenario B:** stripped of the label-replay features, the model scores AUC-PR 0.763 against the baseline's 0.821 (-0.057) and P@10 0.699 vs 0.632 (+0.067) — it **falls below the baseline** on AUC-PR. This is the blueprint's question answered, and the answer differs by scenario: **within a project, PR-level features carry real signal on their own; across projects they do not.** Scenario B's headline advantage rests substantially on the trailing-rate and author-prior features — i.e. on the baseline's own signal — not on transferable PR-level structure. The blueprint anticipated this outcome and called it a legitimate, reportable finding rather than a failure; it is reported here as such.
 
 NO_LABEL_REPLAY answers the blueprint's question directly: it is the model without the baseline's own feature. NO_SNAPSHOT tests the feature dictionary's caveat that HEAD-at-collection repo facts may carry the cold-start result. PR_ONLY is what a PR looks like with no history at all.
 
@@ -117,3 +121,5 @@ A positive (predicted − actual) gap for first-timers means the model is more p
 ![p10](../figures/phase4_p10.png)
 
 ![prA](../figures/phase4_pr_A.png) ![prB](../figures/phase4_pr_B.png)
+
+Scenario B's curve pools the out-of-fold predictions of all five fold-specific models; PR curves cannot be averaged point-wise across folds, so per-fold numbers are in the table above.

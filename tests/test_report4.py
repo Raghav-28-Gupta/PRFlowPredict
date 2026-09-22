@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 import report4
 
 
@@ -144,3 +145,79 @@ def test_headline_caveats_the_a_to_b_comparison():
     s = report4.headline(summary, _pool())
     assert "pool-size artifact" in s and "AUC-PR" in s
     assert "64" in s and "433" in s
+
+
+def test_ablation_finding_names_a_below_baseline_scenario():
+    summary = report4.summarise([
+        _run("A", 0, "NO_LABEL_REPLAY", auc_pr=0.902, baseline_auc_pr=0.887,
+             precision_at_10=0.767, baseline_p10=0.585),
+        _run("B", 0, "NO_LABEL_REPLAY", auc_pr=0.763, baseline_auc_pr=0.821,
+             precision_at_10=0.699, baseline_p10=0.632),
+    ])
+    s = report4.ablation_finding(summary)
+    assert "falls below the baseline" in s
+    assert "across projects they do not" in s
+    assert "0.763" in s and "0.821" in s
+
+
+def test_ablation_finding_stays_quiet_when_both_beat_baseline():
+    summary = report4.summarise([
+        _run("A", 0, "NO_LABEL_REPLAY", auc_pr=0.90, baseline_auc_pr=0.85),
+        _run("B", 0, "NO_LABEL_REPLAY", auc_pr=0.88, baseline_auc_pr=0.80),
+    ])
+    s = report4.ablation_finding(summary)
+    assert "still beats the baseline" in s and "across projects they do not" not in s
+
+
+def test_weighted_p10_delta_matches_hand_computation(tmp_path):
+    """r_small (15 rows): model's top10 by p_hat is rows 0-9 (p_hat strictly descending),
+    all slow -> model P@10=1.0. Baseline's top10 by baseline_score (strictly ascending, so
+    top10 = rows 5-14) has 5 slow (rows 5-9) + 5 not (rows 10-14) -> baseline P@10=0.5.
+    delta=+0.5. r_big (45 rows): every row is NOT slow, so both rankings score 0 regardless
+    of which rows are picked -> delta=0. unweighted mean(0.5, 0.0)=0.25; weighted by each
+    repo's row count (15, 45): (0.5*15 + 0.0*45) / 60 = 0.125 -- the big repo pulls it down."""
+    small = pd.DataFrame({
+        "repo": ["r_small"] * 15,
+        "is_slow": [True] * 10 + [False] * 5,
+        "p_hat": list(range(15, 0, -1)),
+        "baseline_score": list(range(1, 16)),
+    })
+    big = pd.DataFrame({
+        "repo": ["r_big"] * 45,
+        "is_slow": [False] * 45,
+        "p_hat": [0.1] * 45,
+        "baseline_score": [0.2] * 45,
+    })
+    p1 = tmp_path / "small.parquet"; small.to_parquet(p1, index=False)
+    p2 = tmp_path / "big.parquet"; big.to_parquet(p2, index=False)
+    runs = [_run("A", 0, "FULL", pred_path=str(p1)), _run("A", 1, "FULL", pred_path=str(p2))]
+    out = report4.weighted_p10_delta(runs, "A")
+    assert out["n_repos"] == 2
+    assert out["unweighted_delta"] == pytest.approx(0.25)
+    assert out["weighted_delta"] == pytest.approx(0.125)
+
+
+def test_weighted_p10_delta_equals_unweighted_when_effect_is_uniform(tmp_path):
+    """Two repos of very different size (15 and 30 rows) each built so the model-vs-baseline
+    delta is exactly +0.5 (same construction as the hand-computation test above, just with
+    an extra untouched 'padding' block in the middle for the 30-row repo, which neither
+    ranking's top10 ever reaches). If weighting by row count changed the answer here, that
+    would mean weighting introduces bias even when there is nothing to correct for."""
+    r1 = pd.DataFrame({
+        "repo": ["r1"] * 15,
+        "is_slow": [True] * 10 + [False] * 5,
+        "p_hat": list(range(15, 0, -1)),
+        "baseline_score": list(range(1, 16)),
+    })
+    r2 = pd.DataFrame({
+        "repo": ["r2"] * 30,
+        "is_slow": [True] * 10 + [False] * 10 + [True] * 5 + [False] * 5,
+        "p_hat": list(range(30, 0, -1)),
+        "baseline_score": list(range(1, 31)),
+    })
+    p1 = tmp_path / "r1.parquet"; r1.to_parquet(p1, index=False)
+    p2 = tmp_path / "r2.parquet"; r2.to_parquet(p2, index=False)
+    runs = [_run("A", 0, "FULL", pred_path=str(p1)), _run("A", 1, "FULL", pred_path=str(p2))]
+    out = report4.weighted_p10_delta(runs, "A")
+    assert out["unweighted_delta"] == pytest.approx(0.5)
+    assert out["weighted_delta"] == pytest.approx(0.5)

@@ -125,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
                 log.info("%s %-16s fold %d: P@10=%.3f [%.3f,%.3f] base=%.3f bl=%.3f | AUC-PR=%.3f bl=%.3f",
                          scenario, name, k, res["precision_at_10"], res["p10_ci_lo"], res["p10_ci_hi"],
                          res["base_rate_p10"], res["baseline_p10"], res["auc_pr"], res["baseline_auc_pr"])
+    RUNS_JSON.parent.mkdir(parents=True, exist_ok=True)
     RUNS_JSON.write_text(json.dumps({"params_sha": sha, "runs": results}, indent=2), encoding="utf-8")
     print(f"{len(results)} runs -> {RUNS_JSON}")
     return 0
