@@ -314,7 +314,7 @@ git commit -m "feat(phase6): exact TreeSHAP attribution, importance shares, A-vs
 - Create: `errors.py`, `tests/test_errors.py`
 
 **Interfaces:**
-- Consumes: `attribution.explain/prepare`, `featuresets.FEATURE_SETS`.
+- Consumes: nothing from this project. `errors.py` imports only `numpy` and `pandas`; it receives the SHAP matrix and column list as arguments rather than importing `attribution`, which keeps it testable on hand-built fixtures with no booster.
 - Produces:
   - `errors.GITHUB = "https://github.com/{repo}/pull/{number}"`
   - `errors.worst_rows(pred: pd.DataFrame, shap_values: np.ndarray, cols: list[str], feature_frame: pd.DataFrame, n: int = 25) -> pd.DataFrame`
@@ -533,16 +533,20 @@ import fairness
 
 
 def _pred(first_gap=0.30, repeat_gap=0.0, n_repos=8, per_repo=60, seed=0):
-    """Planted: first-timers get p_hat inflated by `first_gap` over their actual rate."""
+    """p_hat = 0.5*actual + gap, so a group's mean gap is (0.5*rate + gap) - rate.
+
+    Both groups therefore carry the same -0.5*rate term, and it cancels in the PAIRED
+    difference gap_difference() computes -- leaving exactly (first_gap - repeat_gap).
+    That is what the difference tests below assert."""
     rng = np.random.default_rng(seed)
     rows = []
     for r in range(n_repos):
         for i in range(per_repo):
             first = i % 2 == 0
-            actual = rng.random() < 0.5
+            actual = bool(rng.random() < 0.5)
             gap = first_gap if first else repeat_gap
             rows.append({"repo": f"r{r}", "is_slow": actual,
-                         "p_hat": float(np.clip(actual + gap - 0.5 * actual + 0.0, 0, 1)),
+                         "p_hat": float(np.clip(0.5 * actual + gap, 0, 1)),
                          "is_first_pr_here": first,
                          "created_hour_utc": (i * 4) % 24})
     return pd.DataFrame(rows)
@@ -575,6 +579,12 @@ def test_gap_difference_detects_a_real_gap():
 
 
 def test_gap_difference_is_honest_when_there_is_no_gap():
+    """The negative control: no planted gap must not produce a 'real' one.
+
+    With 8 repos the paired differences are centred on 0 with sd ~0.065, so a bad seed
+    could land a CI just off zero. If this fails, raise n_repos/per_repo in the _pred()
+    call -- MORE data, never a loosened assertion. `ci_excludes_zero is False` is the
+    whole point of the test and must not be weakened."""
     d = fairness.gap_difference(_pred(first_gap=0.0, repeat_gap=0.0), seed=1)
     assert abs(d["difference"]) < 0.05 and d["ci_excludes_zero"] is False
 ```
