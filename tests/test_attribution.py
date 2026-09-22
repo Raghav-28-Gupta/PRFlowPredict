@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -109,7 +108,7 @@ def _build_full_feature_table(rng, n_rows, pr_ids):
     cols = fs.FEATURE_SETS["FULL"]
     data = {
         col: rng.normal(size=n_rows) if col != "language_dominant"
-        else np.random.choice(["py", "ts"], n_rows)
+        else rng.choice(["py", "ts"], size=n_rows)
         for col in cols
     }
     data["pr_id"] = pr_ids
@@ -177,19 +176,29 @@ def test_explain_run_filters_by_scenario_and_featureset(tmp_path):
 
 
 def test_explain_run_applies_fold_ordering(tmp_path):
-    """explain_run pools folds in order (sorted by fold number)."""
+    """explain_run pools folds in order (sorted by fold number), not input order.
+
+    With runs supplied out of order (fold 2, 0, 1) and distinguishable fold sizes,
+    this test verifies that pooled rows appear in fold order (0, 1, 2) with correct
+    boundaries. If sorting is removed, row order changes, failing the assertion."""
     rng = np.random.default_rng(43)
+
+    # Build table with sentinel values in the first column to distinguish folds
     table = _build_full_feature_table(rng, n_rows=6,
                                       pr_ids=["a", "b", "c", "d", "e", "f"])
-    cols = fs.FEATURE_SETS["FULL"]
+    # Embed fold sentinels in the first column: fold 0 -> 100, fold 1 -> 200, fold 2 -> 300
+    table.loc[table["pr_id"].isin(["a", "b"]), "created_hour_utc"] = 100.0  # fold 0
+    table.loc[table["pr_id"].isin(["c"]), "created_hour_utc"] = 200.0        # fold 1
+    table.loc[table["pr_id"].isin(["d", "e", "f"]), "created_hour_utc"] = 300.0  # fold 2
 
+    cols = fs.FEATURE_SETS["FULL"]
     X_train = table[cols].iloc[:5]
     y_train = (rng.normal(size=len(X_train)) > 0).astype(int)
     booster = model.fit(X_train, y_train, {**model.DEFAULT_PARAMS, "n_estimators": 3})
     model_file = tmp_path / "model.txt"
     model.save(booster, model_file)
 
-    # Create parquets for three folds (with different row counts)
+    # Create parquets for three folds (with different row counts: 2, 1, 3)
     pred_fold0 = pd.DataFrame({"pr_id": ["a", "b"]})
     pred_fold1 = pd.DataFrame({"pr_id": ["c"]})
     pred_fold2 = pd.DataFrame({"pr_id": ["d", "e", "f"]})
@@ -218,6 +227,13 @@ def test_explain_run_applies_fold_ordering(tmp_path):
     assert sv.shape[0] == X_used.shape[0]  # rows match
     assert sv.shape[0] == 6  # 2 + 1 + 3 rows
     assert all(d < 1e-6 for d in deltas), f"Additivity check failed: {deltas}"
+
+    # Verify fold ordering by checking sentinel values in pooled data.
+    # Fold 0 (2 rows) should come first with sentinel 100, fold 1 (1 row) with 200, fold 2 (3 rows) with 300.
+    sentinel_col = X_used["created_hour_utc"].values
+    assert np.allclose(sentinel_col[:2], 100.0), f"Fold 0 rows should have sentinel 100, got {sentinel_col[:2]}"
+    assert np.allclose(sentinel_col[2:3], 200.0), f"Fold 1 row should have sentinel 200, got {sentinel_col[2:3]}"
+    assert np.allclose(sentinel_col[3:], 300.0), f"Fold 2 rows should have sentinel 300, got {sentinel_col[3:]}"
 
 
 def test_explain_run_row_conservation(tmp_path):
