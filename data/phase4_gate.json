@@ -1,0 +1,45 @@
+[
+  {
+    "id": 1,
+    "check": "splits disjoint: A by time (train < cutoff <= test), B by repo per fold",
+    "value": "ok",
+    "pass": true
+  },
+  {
+    "id": 2,
+    "check": "no key/label/flag column in any feature set",
+    "value": "ok",
+    "pass": true
+  },
+  {
+    "id": 3,
+    "check": "NO_LABEL_REPLAY ran on both scenarios",
+    "value": [
+      "('A', 'FULL')",
+      "('A', 'NO_LABEL_REPLAY')",
+      "('A', 'NO_SNAPSHOT')",
+      "('A', 'PR_ONLY')",
+      "('B', 'FULL')",
+      "('B', 'NO_LABEL_REPLAY')",
+      "('B', 'NO_SNAPSHOT')",
+      "('B', 'PR_ONLY')"
+    ],
+    "pass": true
+  },
+  {
+    "id": 4,
+    "check": "all 24 runs have bootstrap CIs and are in experiments.csv under params sha",
+    "value": {
+      "runs": 24,
+      "logged": 24,
+      "ci_ok": true
+    },
+    "pass": true
+  },
+  {
+    "id": 5,
+    "check": "refit A/FULL from params.json reproduces AUC-PR (|delta| < 1e-6)",
+    "value": 0.0,
+    "pass": true
+  }
+]

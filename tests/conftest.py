@@ -104,3 +104,44 @@ def replay_toy():
         "is_slow": [False, True, False, True],
     })
     return tier1, labels
+
+
+@pytest.fixture
+def synthetic_table():
+    """A features.parquet look-alike: every COLUMN_SPEC column, 2 repos, 2,000 rows spanning
+    both sides of the Scenario A cutoff, with a PLANTED signal so a working model must
+    beat chance. Values are random but typed like the real table."""
+    import features as F
+
+    def build(seed: int = 0) -> pd.DataFrame:
+        rng = np.random.default_rng(seed)
+        n = 2000    # after the 5%/repo training cap ~150 training rows survive; 400 would leave ~30
+        created = pd.date_range("2024-06-01", "2026-06-15", periods=n, tz="UTC")
+        repo = np.where(np.arange(n) % 2 == 0, "o/r", "o/s")
+        df = pd.DataFrame({"repo": repo, "created_at": created,
+                           "pr_id": [f"p{i}" for i in range(n)], "number": np.arange(n)})
+        for col, meta in F.COLUMN_SPEC.items():
+            if col in df.columns or meta["status"] in ("label",):
+                continue
+            dt = meta["dtype"]
+            if col == "language_dominant":
+                df[col] = np.where(repo == "o/r", "Go", "Python")
+            elif dt == "bool":
+                df[col] = rng.random(n) < 0.3
+            elif dt == "int":
+                df[col] = rng.integers(0, 50, n)
+            elif dt == "float":
+                df[col] = rng.random(n)
+            else:
+                df[col] = "x"
+        df["timeline_may_be_truncated"] = False
+        z = (df["body_len"] - df["body_len"].mean()) / (df["body_len"].std() + 1e-9)
+        signal = df["trailing_90d_slow_rate"] + 0.5 * z + rng.normal(0, 0.10, n)
+        df["is_slow"] = signal > 0.5
+        df["wait_h"] = np.where(df["is_slow"], np.nan, rng.random(n) * 100)
+        df["wait_h_censored"] = df["wait_h"].fillna(720.0)
+        df["event_observed"] = ~df["is_slow"]
+        df["never_reviewed_30d"] = df["is_slow"]
+        return df[list(F.COLUMN_SPEC)].sort_values(["created_at", "pr_id"]).reset_index(drop=True)
+
+    return build
