@@ -60,7 +60,16 @@ FULL per fold:
 
 ## 4. Headline
 
-On Scenario A, the FULL model's within-repo Precision@10 is **0.769** [0.669, 0.856] against the trailing-rate baseline's 0.585 (**+0.185**; the CI excludes the baseline) and the base rate 0.641 (+0.129; the CI excludes the base rate). AUC-PR 0.906 vs baseline 0.887. On Scenario B (cold-start), FULL averages P@10 0.796 vs baseline 0.632, AUC-PR 0.859 vs 0.821 — an A→B P@10 gap of -0.027. The blueprint's bar was a clear margin over the baseline on A (5–10 points); that bar is met.
+On Scenario A, the FULL model's within-repo Precision@10 is **0.769** [0.669, 0.856] against the trailing-rate baseline's 0.585 (**+0.185**; the CI excludes the baseline) and the base rate 0.641 (+0.129; the CI excludes the base rate). AUC-PR 0.906 vs baseline 0.887. On Scenario B (cold-start), FULL averages P@10 0.796 vs baseline 0.632, AUC-PR 0.859 vs 0.821 — an A→B P@10 gap of -0.027. That A→B comparison is **not** like-for-like: Precision@10 ranks the top 10 *per repo*, and Scenario A draws them from a median of 64 test PRs over 6 months (5 of 39 repos have fewer than 10 test PRs at all, and only 32/39 have 10 slow PRs available, so P@10 = 1.0 is unattainable for 7 of them), while Scenario B draws from a median of 433 over 30 months (39/39 attainable). Ranking the 10 slowest out of a larger pool is easier, so B's higher P@10 is substantially a pool-size artifact and must not be read as cold-start transfer being easy — for that comparison use AUC-PR, which does not depend on pool size, and the per-fold detail below. The blueprint's bar was a clear margin over the baseline on A (5–10 points); that bar is met.
+
+## 4b. Are A and B comparable?
+
+| scenario | n_test_rows | n_repos | pool_median | pool_min | repos_under_10_test_prs | repos_with_10plus_slow | months_spanned |
+|---|---|---|---|---|---|---|---|
+| A | 14135 | 39 | 64.000 | 5 | 5 | 32 | 6 |
+| B | 38444 | 39 | 433.000 | 158 | 0 | 39 | 30 |
+
+Precision@10 is a within-repo top-k metric, so it is sensitive to how many candidates each repo contributes. AUC-PR is not, which is why the headline points at it for the A→B comparison.
 
 ## 5. Ablations (Δ vs FULL, same scenario)
 

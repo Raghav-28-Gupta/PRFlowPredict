@@ -112,6 +112,32 @@ def bias_slices(pred: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def pool_comparability(runs: list[dict]) -> pd.DataFrame:
+    """Per scenario: how big and how time-spread is the per-repo Precision@10 candidate pool.
+
+    metrics.precision_at_k ranks the top 10 PER REPO within a scenario's test rows, so a
+    P@10 comparison across scenarios is only like-for-like if the two pools are comparable
+    in size. This is what lets headline() caveat the A->B gap instead of overclaiming it."""
+    rows = []
+    for sc in ("A", "B"):
+        paths = [r["pred_path"] for r in runs if r["scenario"] == sc and r["featureset"] == "FULL"]
+        pred = pd.concat([pd.read_parquet(p) for p in paths], ignore_index=True)
+        per_repo_n = pred.groupby("repo").size()
+        per_repo_slow = pred.groupby("repo")["is_slow"].sum()
+        span_days = (pred["created_at"].max() - pred["created_at"].min()).days
+        rows.append({
+            "scenario": sc,
+            "n_test_rows": int(len(pred)),
+            "n_repos": int(pred["repo"].nunique()),
+            "pool_median": float(per_repo_n.median()),
+            "pool_min": int(per_repo_n.min()),
+            "repos_under_10_test_prs": int((per_repo_n < 10).sum()),
+            "repos_with_10plus_slow": int((per_repo_slow >= 10).sum()),
+            "months_spanned": int(round(span_days / 30.4375)),
+        })
+    return pd.DataFrame(rows)
+
+
 # ----------------------------------------------------------------------------
 # Figures
 # ----------------------------------------------------------------------------
@@ -156,25 +182,39 @@ def md(df: pd.DataFrame, fmt: str = "{:.3f}") -> str:
     return "\n".join(out)
 
 
-def headline(summary: pd.DataFrame) -> str:
+def headline(summary: pd.DataFrame, pool: pd.DataFrame) -> str:
     a = summary[(summary.scenario == "A") & (summary.featureset == "FULL")].iloc[0]
     b = summary[(summary.scenario == "B") & (summary.featureset == "FULL")].iloc[0]
     d_bl = a.precision_at_10 - a.baseline_p10
     d_br = a.precision_at_10 - a.base_rate_p10
     excl_bl = "excludes" if not (a.p10_ci_lo <= a.baseline_p10 <= a.p10_ci_hi) else "includes"
     excl_br = "excludes" if not (a.p10_ci_lo <= a.base_rate_p10 <= a.p10_ci_hi) else "includes"
+    pa = pool[pool.scenario == "A"].iloc[0]
+    pb = pool[pool.scenario == "B"].iloc[0]
+    comparability = (
+        f"That A→B comparison is **not** like-for-like: Precision@10 ranks the top 10 *per repo*, and "
+        f"Scenario A draws them from a median of {pa.pool_median:.0f} test PRs over {pa.months_spanned} months "
+        f"({pa.repos_under_10_test_prs} of {pa.n_repos} repos have fewer than 10 test PRs at all, and only "
+        f"{pa.repos_with_10plus_slow}/{pa.n_repos} have 10 slow PRs available, so P@10 = 1.0 is unattainable for "
+        f"{pa.n_repos - pa.repos_with_10plus_slow} of them), while Scenario B draws from a median of "
+        f"{pb.pool_median:.0f} over {pb.months_spanned} months ({pb.repos_with_10plus_slow}/{pb.n_repos} attainable). "
+        f"Ranking the 10 slowest out of a larger pool is easier, so B's higher P@10 is substantially a pool-size "
+        f"artifact and must not be read as cold-start transfer being easy — for that comparison use AUC-PR, which "
+        f"does not depend on pool size, and the per-fold detail below."
+    )
     return (f"On Scenario A, the FULL model's within-repo Precision@10 is **{a.precision_at_10:.3f}** "
             f"[{a.p10_ci_lo:.3f}, {a.p10_ci_hi:.3f}] against the trailing-rate baseline's {a.baseline_p10:.3f} "
             f"(**{d_bl:+.3f}**; the CI {excl_bl} the baseline) and the base rate {a.base_rate_p10:.3f} "
             f"({d_br:+.3f}; the CI {excl_br} the base rate). AUC-PR {a.auc_pr:.3f} vs baseline {a.baseline_auc_pr:.3f}. "
             f"On Scenario B (cold-start), FULL averages P@10 {b.precision_at_10:.3f} vs baseline {b.baseline_p10:.3f}, "
             f"AUC-PR {b.auc_pr:.3f} vs {b.baseline_auc_pr:.3f} — an A→B P@10 gap of {a.precision_at_10 - b.precision_at_10:+.3f}. "
+            f"{comparability} "
             f"The blueprint's bar was a clear margin over the baseline on A (5–10 points); "
             f"{'that bar is met' if d_bl >= 0.05 else 'that bar is NOT met — PR-level signal adds ' + ('little' if d_bl > 0 else 'nothing') + ' over the repo trailing rate within-repo, which is itself the reportable finding'}.")
 
 
-def render(params: dict, params_sha: str, summary: pd.DataFrame, runs: list[dict], slices: dict[str, pd.DataFrame],
-           checks: list[dict], figs: dict[str, Path], n_rows: int, n_dropped: int) -> str:
+def render(params: dict, params_sha: str, summary: pd.DataFrame, runs: list[dict], pool: pd.DataFrame,
+           slices: dict[str, pd.DataFrame], checks: list[dict], figs: dict[str, Path], n_rows: int, n_dropped: int) -> str:
     abl = summary.copy()
     abl["d_p10_vs_FULL"] = abl.apply(lambda r: r.precision_at_10 - summary[(summary.scenario == r.scenario) & (summary.featureset == "FULL")].precision_at_10.iloc[0], axis=1)
     abl["d_auc_pr_vs_FULL"] = abl.apply(lambda r: r.auc_pr - summary[(summary.scenario == r.scenario) & (summary.featureset == "FULL")].auc_pr.iloc[0], axis=1)
@@ -220,7 +260,13 @@ FULL per fold:
 
 ## 4. Headline
 
-{headline(summary)}
+{headline(summary, pool)}
+
+## 4b. Are A and B comparable?
+
+{md(pool)}
+
+Precision@10 is a within-repo top-k metric, so it is sensitive to how many candidates each repo contributes. AUC-PR is not, which is why the headline points at it for the A→B comparison.
 
 ## 5. Ablations (Δ vs FULL, same scenario)
 
@@ -265,6 +311,7 @@ def main() -> int:
     GATE_JSON.write_text(json.dumps(checks, indent=2, default=str), encoding="utf-8")
 
     summary = summarise(runs)
+    pool = pool_comparability(runs)
     slices = {}
     for sc in ("A", "B"):
         paths = [Path(r["pred_path"]) for r in runs if r["scenario"] == sc and r["featureset"] == "FULL"]
@@ -272,7 +319,7 @@ def main() -> int:
     figs = {"p10": fig_p10(summary),
             "pr_A": fig_pr("A", [Path(r["pred_path"]) for r in runs if r["scenario"] == "A" and r["featureset"] == "FULL"]),
             "pr_B": fig_pr("B", [Path(r["pred_path"]) for r in runs if r["scenario"] == "B" and r["featureset"] == "FULL"])}
-    DOC.write_text(render(params, sha, summary, runs, slices, checks, figs, len(table), int(len(raw) - len(table))), encoding="utf-8")
+    DOC.write_text(render(params, sha, summary, runs, pool, slices, checks, figs, len(table), int(len(raw) - len(table))), encoding="utf-8")
     verdict = all(c["pass"] for c in checks)
     print(f"wrote {DOC}  gate={'PASS' if verdict else 'FAIL'}")
     return 0 if verdict else 1

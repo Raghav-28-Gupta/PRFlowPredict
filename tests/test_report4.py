@@ -24,6 +24,15 @@ def _experiments(sha, n=24):
     return pd.DataFrame({"model": ["lgbm"] * n, "params": [sha] * n, "p10_ci_lo": [0.5] * n, "p10_ci_hi": [0.7] * n})
 
 
+def _pool(a_median=64.0, b_median=433.0):
+    return pd.DataFrame([
+        {"scenario": "A", "n_test_rows": 14135, "n_repos": 39, "pool_median": a_median,
+         "pool_min": 5, "repos_under_10_test_prs": 5, "repos_with_10plus_slow": 32, "months_spanned": 6},
+        {"scenario": "B", "n_test_rows": 38444, "n_repos": 39, "pool_median": b_median,
+         "pool_min": 158, "repos_under_10_test_prs": 0, "repos_with_10plus_slow": 39, "months_spanned": 30},
+    ])
+
+
 def test_gate_all_pass():
     checks = report4.gate_checks(_all_runs(), "abc123", _experiments("abc123"), repro_delta=0.0)
     assert [c["id"] for c in checks] == [1, 2, 3, 4, 5] and all(c["pass"] for c in checks)
@@ -100,12 +109,38 @@ def test_headline_is_true_in_both_directions():
     win = report4.summarise([_run("A", 0, "FULL", precision_at_10=0.65, p10_ci_lo=0.55, p10_ci_hi=0.75,
                                   baseline_p10=0.50, base_rate_p10=0.48),
                              _run("B", 0, "FULL", precision_at_10=0.55, baseline_p10=0.50)])
-    s = report4.headline(win)
+    s = report4.headline(win, _pool())
     assert "that bar is met" in s and "+0.150" in s and "CI excludes the baseline" in s
 
     lose = report4.summarise([_run("A", 0, "FULL", precision_at_10=0.47, p10_ci_lo=0.40, p10_ci_hi=0.55,
                                    baseline_p10=0.50, base_rate_p10=0.45),
                               _run("B", 0, "FULL", precision_at_10=0.46, baseline_p10=0.48)])
-    s = report4.headline(lose)
+    s = report4.headline(lose, _pool())
     assert "bar is NOT met" in s and "reportable finding" in s
     assert "that bar is met" not in s.replace("bar is NOT met", "")
+
+
+def test_pool_comparability_shape(tmp_path):
+    rows = []
+    for sc, n, span in (("A", 40, "2026-01-01"), ("B", 400, "2024-01-01")):
+        d = pd.DataFrame({"repo": ["r1"] * n, "is_slow": [True] * 12 + [False] * (n - 12),
+                          "p_hat": 0.5, "created_at": pd.date_range(span, periods=n, freq="D", tz="UTC"),
+                          "is_first_pr_here": False, "created_hour_utc": 1, "baseline_score": 0.5})
+        p = tmp_path / f"{sc}.parquet"; d.to_parquet(p, index=False)
+        rows.append(_run(sc, 0, "FULL", pred_path=str(p)))
+    out = report4.pool_comparability(rows)
+    assert list(out["scenario"]) == ["A", "B"]
+    assert set(out.columns) == {"scenario", "n_test_rows", "n_repos", "pool_median", "pool_min",
+                                "repos_under_10_test_prs", "repos_with_10plus_slow", "months_spanned"}
+    assert out.loc[out.scenario == "A", "pool_median"].iloc[0] == 40
+    assert out.loc[out.scenario == "B", "n_test_rows"].iloc[0] == 400
+    assert (out["repos_with_10plus_slow"] == 1).all()
+
+
+def test_headline_caveats_the_a_to_b_comparison():
+    summary = report4.summarise([_run("A", 0, "FULL", precision_at_10=0.769, p10_ci_lo=0.669, p10_ci_hi=0.856,
+                                      baseline_p10=0.585, base_rate_p10=0.641),
+                                 _run("B", 0, "FULL", precision_at_10=0.796, baseline_p10=0.60)])
+    s = report4.headline(summary, _pool())
+    assert "pool-size artifact" in s and "AUC-PR" in s
+    assert "64" in s and "433" in s
