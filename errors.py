@@ -44,7 +44,7 @@ def worst_rows(pred: pd.DataFrame, shap_values: np.ndarray, cols: list[str],
                 "number": int(src["number"]),
                 "url": GITHUB.format(repo=src["repo"], number=int(src["number"])),
                 "p_hat": float(src["p_hat"]), "is_slow": bool(src["is_slow"]),
-                "wait_h": float(src["wait_h"]) if pd.notna(src["wait_h"]) else float("nan"),
+                "wait_h": float(src["wait_h"]),
             }
             vals = feature_frame.iloc[i]
             for rank, j in enumerate(order, start=1):

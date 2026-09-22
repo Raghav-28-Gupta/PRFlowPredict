@@ -66,7 +66,7 @@ def test_error_patterns_flags_the_inflated_feature():
     ff_all = pd.DataFrame({"f0": [0.0] * 98 + [50.0, 50.0], "f1": np.arange(100.0)},
                           index=[f"p{i}" for i in range(100)])
     worst = pd.DataFrame({"pr_id": ["p98", "p99"]})
-    out = errors.error_patterns(worst, ff_all, ["f0", "f1"])
+    out = errors.error_patterns(worst, ff_all, ["f1", "f0"])
     assert list(out.columns) == ["feature", "mean_worst", "mean_all", "z"]
     assert out.iloc[0]["feature"] == "f0"          # largest |z| first
     assert out.iloc[0]["z"] > 3
@@ -76,6 +76,6 @@ def test_error_patterns_survives_a_non_numeric_column():
     """language_dominant is categorical; it must not raise, and must not rank."""
     ff_all = pd.DataFrame({"f0": [0.0] * 98 + [50.0, 50.0], "lang": ["py"] * 100},
                           index=[f"p{i}" for i in range(100)])
-    out = errors.error_patterns(pd.DataFrame({"pr_id": ["p98", "p99"]}), ff_all, ["f0", "lang"])
+    out = errors.error_patterns(pd.DataFrame({"pr_id": ["p98", "p99"]}), ff_all, ["lang", "f0"])
     assert out.iloc[0]["feature"] == "f0"
     assert out.set_index("feature").loc["lang", "z"] == 0.0
