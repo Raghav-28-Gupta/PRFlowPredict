@@ -21,3 +21,6 @@ pytest==8.4.1           # tests/
 # Phase 4
 lightgbm==4.7.0         # primary classifier (native API)
 optuna==5.0.0           # hyperparameter search on Scenario A training rows
+
+# Phase 6
+shap==0.52.0            # exact TreeSHAP attribution for the LightGBM boosters
