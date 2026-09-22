@@ -84,13 +84,15 @@
 | 1 | `[R1]` **Pipeline done; 45-repo collection launched 2026-09-16.** Two-stage (raw bytes → Parquet), two-tier (all-history thin + in-window rich), resumable, dead-PR bypass. ~4–5h | Must-have |
 | 2 | `[R2]` **Done 2026-09-17.** D5 primary (46.4% slow; D3 44.0%, per-repo spread median 0.3pp, max 51pp on `michaelfeil/infinity`); 39/45 repos kept (5 bot-dominated, 1 language mismatch); baseline logged; gate PASS 5/5. `docs/phase2_eda.md` | Must-have — done |
 | 3 | `[R2]` **Done 2026-09-21.** 50-column feature table (`data/features/features.parquet`, 38,462 rows) built by chronological replay; every replay feature proven by independent brute-force recomputation (max |Δ| = 0.0 on 500 rows); 5 rows verified against live GitHub (40/40). `docs/feature_dictionary.md` is generated from code. Found and fixed a Phase 1 parse bug (zeros collapsed to NaN) via re-parse, no re-scrape | Must-have — done |
-| 4 (week 4) | LightGBM classifier trained and evaluated on both splits | Must-have |
+| 4 | `[R2]` **Done 2026-09-22.** LightGBM on both splits + 3 pre-registered ablations, Optuna-tuned on Scenario A train only (CV AUC-PR 0.907); validity gate 5/5, refit delta 0.0. **A: P@10 0.769 [0.669, 0.856] vs baseline 0.585 — bar MET.** **But NO_LABEL_REPLAY on B scores AUC-PR 0.763 vs baseline 0.821 — within a project PR-level features carry signal; across projects they do not.** `docs/phase4_results.md` | Must-have — done |
 | 5 (week 5) | Survival model, C-index, calibration check | Nice-to-have (depth section) — cut first if time runs short |
 | 6 (week 6) | SHAP feature attribution, manual error analysis on worst 50 predictions | Must-have |
 | 7 (week 7) | Streamlit demo: pick a repo, see open PRs ranked by risk | Nice-to-have but high payoff for the demo |
 | 8 | Write-up | Must-have |
 
 **Checkpoints:** after Phase 0, confirm the labeling logic isn't degenerate before scaling collection. After Phase 3, confirm zero leakage by spot-checking 5 rows manually against raw timestamps. `[R2]` Both done: Phase 3's check was automated (brute-force twin, gate #2) AND performed against live GitHub (gate #5, `data/phase3_gate5_live.json`).
+
+`[R2]` **This is what happened, in the precise form the blueprint anticipated:** Scenario B's FULL model beats the baseline, but strip the label-replay features and it does not (AUC-PR 0.763 vs 0.821, at-or-below in 4/5 folds). The cold-start advantage rests on the repo's own trailing rate, not on transferable PR-level structure. Phase 6's SHAP work should explain why. Note also that B's raw P@10 (0.796) EXCEEDS A's (0.769) only because B's per-repo candidate pool is ~7x larger (median 433 vs 64 test PRs); that is a pool-size artifact, not cold-start superiority.
 
 **Fallback if the primary approach stalls:** if the leave-repos-out split (Scenario B) collapses to near-baseline performance, that is not a dead end — pivot the report's framing to "within-project prediction is viable; cross-project transfer is not, and here's the SHAP evidence for why" (likely: repo culture dominates, and it's not transferable through the features collected). This is a legitimate, gradeable finding, not a failure state.
 
