@@ -67,3 +67,45 @@ def test_summarise_means_over_folds():
     df = report4.summarise(_all_runs())
     assert set(df["scenario"]) == {"A", "B"} and len(df) == 8
     assert df[(df.scenario == "B") & (df.featureset == "FULL")]["n_folds"].iloc[0] == 5
+
+
+def test_gate_check4_ignores_rows_from_other_models_or_params():
+    # 24 rows present, but none match this params sha -> check 4 must fail.
+    wrong_sha = _experiments("OTHER_SHA")
+    assert report4.gate_checks(_all_runs(), "s", wrong_sha, 0.0)[3]["pass"] is False
+    # 24 rows with the right sha but a different model -> also fails.
+    wrong_model = _experiments("s"); wrong_model["model"] = "baseline_trailing90"
+    assert report4.gate_checks(_all_runs(), "s", wrong_model, 0.0)[3]["pass"] is False
+    # Mixed: 24 matching + 5 unrelated rows -> still passes (the filter counts, not the length).
+    mixed = pd.concat([_experiments("s"), _experiments("OTHER_SHA", n=5)], ignore_index=True)
+    assert report4.gate_checks(_all_runs(), "s", mixed, 0.0)[3]["pass"] is True
+
+
+def test_gate_check4_fails_on_non_finite_ci():
+    runs = _all_runs(); runs[0]["p10_ci_hi"] = float("nan")
+    assert report4.gate_checks(runs, "s", _experiments("s"), 0.0)[3]["pass"] is False
+    runs = _all_runs(); runs[3]["p10_ci_lo"] = float("inf")
+    assert report4.gate_checks(runs, "s", _experiments("s"), 0.0)[3]["pass"] is False
+
+
+def test_gate_check3_fails_when_scenario_a_ablation_missing():
+    runs = [r for r in _all_runs() if not (r["featureset"] == "NO_LABEL_REPLAY" and r["scenario"] == "A")]
+    c = report4.gate_checks(runs, "s", _experiments("s"), 0.0)
+    assert c[2]["pass"] is False                       # the A half of the AND
+    assert "NO_LABEL_REPLAY" in c[2]["check"]
+
+
+def test_headline_is_true_in_both_directions():
+    """The write-up's most important sentence must not overclaim in either outcome."""
+    win = report4.summarise([_run("A", 0, "FULL", precision_at_10=0.65, p10_ci_lo=0.55, p10_ci_hi=0.75,
+                                  baseline_p10=0.50, base_rate_p10=0.48),
+                             _run("B", 0, "FULL", precision_at_10=0.55, baseline_p10=0.50)])
+    s = report4.headline(win)
+    assert "that bar is met" in s and "+0.150" in s and "CI excludes the baseline" in s
+
+    lose = report4.summarise([_run("A", 0, "FULL", precision_at_10=0.47, p10_ci_lo=0.40, p10_ci_hi=0.55,
+                                   baseline_p10=0.50, base_rate_p10=0.45),
+                              _run("B", 0, "FULL", precision_at_10=0.46, baseline_p10=0.48)])
+    s = report4.headline(lose)
+    assert "bar is NOT met" in s and "reportable finding" in s
+    assert "that bar is met" not in s.replace("bar is NOT met", "")
