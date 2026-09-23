@@ -622,7 +622,9 @@ HOUR_BUCKETS = [(0, 6, "00-06"), (6, 12, "06-12"), (12, 18, "12-18"), (18, 24, "
 def _per_repo_gap(sub: pd.DataFrame) -> pd.Series:
     """mean(p_hat) - mean(is_slow) per repo. The bootstrap unit."""
     g = sub.groupby("repo")
-    return g["p_hat"].mean() - g["is_slow"].astype(float).mean()
+    # .mean().astype(float), not .astype(float).mean(): SeriesGroupBy has no .astype
+    # (verified AttributeError on pandas 2.3.3). Same result either way.
+    return g["p_hat"].mean() - g["is_slow"].mean().astype(float)
 
 
 def _row(slice_name: str, level: str, sub: pd.DataFrame, seed: int) -> dict:
