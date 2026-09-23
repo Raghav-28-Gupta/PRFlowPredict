@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 import report6
 
@@ -84,3 +83,25 @@ def test_md_renders_a_table():
     out = report6.md(pd.DataFrame({"a": [1.0], "b": ["x"]}))
     assert out.splitlines()[0] == "| a | b |"
     assert "1.000" in out and "x" in out
+
+
+def test_fmt_wait_h_renders_never_reviewed_for_nan():
+    df = pd.DataFrame({"pr_id": ["p1", "p2"], "wait_h": [float("nan"), 12.5]})
+    out = report6._fmt_wait_h(df)
+    assert out.loc[0, "wait_h"] == "never reviewed"
+    assert out.loc[1, "wait_h"] == 12.5
+    assert pd.isna(df.loc[0, "wait_h"])                 # input frame is not mutated
+
+
+def test_md_renders_never_reviewed_not_literal_nan():
+    df = report6._fmt_wait_h(pd.DataFrame({"wait_h": [float("nan"), 5.0]}))
+    out = report6.md(df)
+    assert "never reviewed" in out
+    assert "nan" not in out.lower()
+
+
+def test_fairness_heading_names_the_scenario():
+    a, b = report6._fairness_heading("A"), report6._fairness_heading("B")
+    assert "Scenario A" in a and "within-project" in a
+    assert "Scenario B" in b and "cold-start" in b
+    assert a != b                                       # a reader must be able to tell them apart

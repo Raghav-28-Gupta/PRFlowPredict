@@ -163,11 +163,29 @@ def fairness_verdict(diff: dict, scenario: str) -> str:
             f"repeat ones, on {diff['n_first_time']:,} newcomer and {diff['n_repeat']:,} repeat rows.")
 
 
+SCENARIO_WHAT = {"A": "within-project split, time cutoff", "B": "cold-start split, leave-repos-out"}
+
+
+def _fmt_wait_h(df: pd.DataFrame) -> pd.DataFrame:
+    """wait_h is NaN exactly when the PR was never reviewed at all -- the most important fact
+    about a row the model called "fine". Rendering that as the literal string "nan" would read
+    as missing data instead. worst_rows() keeps wait_h a float so data/phase6_worst50.csv stays
+    numeric and machine-readable; this substitution belongs only in the rendered document."""
+    out = df.copy()
+    out["wait_h"] = out["wait_h"].apply(lambda v: "never reviewed" if pd.isna(v) else v)
+    return out
+
+
+def _fairness_heading(scenario: str) -> str:
+    """Section 5 shows both scenarios' tables back to back; name which is which."""
+    return f"### Scenario {scenario} ({SCENARIO_WHAT[scenario]})"
+
+
 def render(shift_df, imp_a, imp_b, share_a, share_b, worst, patterns, fair, diffs,
            checks, figs, n_explained) -> str:
     verdict = "PASS" if all(c["pass"] for c in checks) else "FAIL"
-    fp = worst[worst["kind"] == "fp"].head(25)
-    fn = worst[worst["kind"] == "fn"].head(25)
+    fp = _fmt_wait_h(worst[worst["kind"] == "fp"].head(25))
+    fn = _fmt_wait_h(worst[worst["kind"] == "fn"].head(25))
     show = ["repo", "number", "url", "p_hat", "wait_h", "top1_feature", "top1_shap",
             "top2_feature", "top2_shap", "top3_feature", "top3_shap"]
     return f"""# Phase 6 — Interpretation, Error Analysis, Fairness
@@ -240,7 +258,7 @@ other interval in this project. The two are on different weighting bases, so in 
 **`gap` does not equal `mean_p_hat - actual_rate`**; that is by construction, not an error, and the
 columns are not meant to be subtracted against each other.
 
-{chr(10).join(md(f) + chr(10) for f in fair.values())}
+{chr(10).join(_fairness_heading(sc) + chr(10) + chr(10) + md(f) + chr(10) for sc, f in fair.items())}
 
 {chr(10).join(fairness_verdict(d, sc) for sc, d in diffs.items())}
 """
@@ -263,7 +281,7 @@ def main() -> int:
     share_a, share_b = attr.label_replay_share(imp_a), attr.label_replay_share(imp_b)
 
     # gate 2: same model, different sample seed -> compare top-10 rankings
-    sv2, X2, _ = attr.explain_run("A", table, runs, seed=attr.SEED + 1)
+    sv2, _, _ = attr.explain_run("A", table, runs, seed=attr.SEED + 1)
     imp_a2 = attr.importance(sv2, cols)
     top = imp_a.head(10)["feature"].tolist()
     r2 = imp_a2.set_index("feature")["mean_abs_shap"]
