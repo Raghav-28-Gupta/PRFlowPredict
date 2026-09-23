@@ -21,7 +21,7 @@ def aligned():
     feature_frame = pd.DataFrame({"f0": [5.0, 1, 1, 1, 1, 1],
                                   "f1": [0.0, 0, 0, 0, 0, 0],
                                   "f2": [1.0, 1, 1, 1, 1, 1]})
-    # row 0: f0 dominates (|2.0|), then f2 (|0.5|), then f1 (|0.1|)
+    # row 0: f1 dominates (|2.0|), then f2 (|0.5|), then f0 (|0.1|)
     shap_values = np.tile([0.1, 0.5, 0.05], (6, 1))
     shap_values[0] = [0.1, -2.0, 0.5]        # order by |value|: f1, f2, f0
     return pred, shap_values, cols, feature_frame

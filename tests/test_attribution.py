@@ -11,12 +11,14 @@ import model
 
 @pytest.fixture
 def toy_booster():
-    """2 features: `a` drives the label, `b` is pure noise. A correct importance
-    ranking must put `a` first by a wide margin."""
+    """2 features: `a` drives the label, `b` is pure noise. Built in column order
+    (b, a) -- the OPPOSITE of the expected importance order -- so a correct ranking
+    must actually reorder rather than merely preserve `cols` order. A correct
+    importance ranking must put `a` first by a wide margin regardless."""
     rng = np.random.default_rng(0)
     n = 400
     a = rng.normal(size=n)
-    X = pd.DataFrame({"a": a, "b": rng.normal(size=n)})
+    X = pd.DataFrame({"b": rng.normal(size=n), "a": a})
     y = (a + rng.normal(0, 0.25, n) > 0).astype(int)
     return model.fit(X, y, model.DEFAULT_PARAMS), X, y
 
@@ -39,6 +41,9 @@ def test_explain_shapes_and_additivity(toy_booster):
 
 
 def test_importance_ranks_the_real_driver_first(toy_booster):
+    """X.columns (and thus `cols`) is ["b", "a"] -- `a` is positionally SECOND, so
+    this can only pass if importance() actually sorts by mean_abs_shap rather than
+    returning its frame in `cols` order."""
     booster, X, _ = toy_booster
     sv, _ = attr.explain(booster, X)
     imp = attr.importance(sv, list(X.columns))
@@ -49,16 +54,21 @@ def test_importance_ranks_the_real_driver_first(toy_booster):
 
 
 def test_shift_signs_and_ordering():
-    imp_a = pd.DataFrame({"feature": ["x", "y", "z"], "mean_abs_shap": [3.0, 1.0, 1.0],
-                          "share": [0.6, 0.2, 0.2]})
-    imp_b = pd.DataFrame({"feature": ["x", "y", "z"], "mean_abs_shap": [1.0, 3.0, 1.0],
-                          "share": [0.2, 0.6, 0.2]})
+    """Three DISTINCT |delta| magnitudes (0.05, 0.25, 0.30), fixture built in the order
+    p, r, q -- the positional order BEFORE sorting -- while the correct |delta|-descending
+    order is q, r, p. An unsorted output returns p, r, q and fails the sequence assertion;
+    it cannot pass by accident of input order the way a same-magnitude or first-column
+    fixture could."""
+    imp_a = pd.DataFrame({"feature": ["p", "r", "q"], "mean_abs_shap": [1.0, 1.0, 1.0],
+                          "share": [0.10, 0.40, 0.50]})
+    imp_b = pd.DataFrame({"feature": ["p", "r", "q"], "mean_abs_shap": [1.0, 1.0, 1.0],
+                          "share": [0.15, 0.65, 0.20]})
     s = attr.shift(imp_a, imp_b)
     assert list(s.columns) == ["feature", "share_a", "share_b", "delta"]
-    assert s.iloc[0]["feature"] in ("x", "y")                    # largest |delta| first
-    assert s.set_index("feature").loc["x", "delta"] == pytest.approx(-0.4)
-    assert s.set_index("feature").loc["y", "delta"] == pytest.approx(+0.4)
-    assert s.set_index("feature").loc["z", "delta"] == pytest.approx(0.0)
+    assert list(s["feature"]) == ["q", "r", "p"]        # |delta| descending: 0.30, 0.25, 0.05
+    assert s.set_index("feature").loc["p", "delta"] == pytest.approx(+0.05)
+    assert s.set_index("feature").loc["r", "delta"] == pytest.approx(+0.25)
+    assert s.set_index("feature").loc["q", "delta"] == pytest.approx(-0.30)
 
 
 def test_shift_handles_a_feature_missing_from_one_side():

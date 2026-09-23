@@ -4,7 +4,15 @@ The gate tests VALIDITY, not what the attributions say. A shift table showing Sc
 leaning on the label-replay features and one showing it not are both valid outcomes; §2
 of the document reports whichever occurred. The hard stop is SHAP additivity: if
 sum(shap) + expected_value does not reproduce the booster's raw margin, the attributions
-are not the model's and nothing downstream means anything."""
+are not the model's and nothing downstream means anything.
+
+WARNING -- docs/phase6_interpretation.md §4's written analysis (the paragraph under
+"What the failures have in common") is HAND-MAINTAINED and cannot be generated: it is a
+close reading of data/phase6_worst50.csv that no function here reconstructs. Running this
+script OVERWRITES the document and replaces that paragraph with a placeholder anchor
+comment, destroying the hand-written analysis. If you re-run this script to refresh
+numbers, you must re-write §4 by hand afterward from the refreshed
+data/phase6_worst50.csv before merging."""
 from __future__ import annotations
 
 import json
@@ -122,31 +130,67 @@ def md(df: pd.DataFrame, fmt: str = "{:.3f}") -> str:
     return "\n".join(lines)
 
 
+def _pp(d: float) -> str:
+    """Render a difference of shares (each already a percentage) as percentage POINTS.
+    `share_a`/`share_b` are fractions of attribution mass; d = share_b - share_a is a
+    percentage-point difference. {d:+.1%} would instead render it as if it were a
+    fraction of a whole (e.g. 0.0218 -> "+2.2%"), which reads as a RELATIVE change and
+    is simply wrong read that way (the relative change here is +3.6%, not +2.2%)."""
+    return f"{d * 100:+.1f} points"
+
+
 def mechanism(share_a: float, share_b: float) -> str:
     """What the label-replay share says about the cold-start finding -- either way."""
     d = share_b - share_a
     if d > 0.05:
         verdict = (f"**B leans harder on the baseline's own signal.** The four label-replay features carry "
                    f"{share_b:.1%} of Scenario B's attribution mass against {share_a:.1%} in Scenario A "
-                   f"({d:+.1%}). That is the mechanism behind Phase 4's ablation result: strip those "
+                   f"({_pp(d)}). That is the mechanism behind Phase 4's ablation result: strip those "
                    f"features and the cold-start model has comparatively little left, which is exactly what "
                    f"NO_LABEL_REPLAY showed (B AUC-PR 0.763 vs baseline 0.821, while A still won at 0.902 "
                    f"vs 0.887). Cross-project, the model is largely re-deriving the repo's own trailing "
-                   f"rate rather than learning transferable PR-level structure.")
+                   f"rate rather than learning transferable PR-level structure. Note this compares the "
+                   f"FULL models' attribution, not the NO_LABEL_REPLAY ablation itself -- equal attribution "
+                   f"mass here is only indirect evidence about what happens once those features are "
+                   f"actually removed, since a model can re-route through correlated features.")
     elif d < -0.05:
         verdict = (f"**B leans LESS on the label-replay features than A does** ({share_b:.1%} vs "
-                   f"{share_a:.1%}, {d:+.1%}) — so the cold-start weakness Phase 4 measured is not "
+                   f"{share_a:.1%}, {_pp(d)}) — so the cold-start weakness Phase 4 measured is not "
                    f"explained by over-reliance on the baseline's signal, and the explanation lies "
                    f"elsewhere. Worth stating plainly: this contradicts the expected mechanism.")
     else:
         verdict = (f"**The label-replay share is essentially unchanged between scenarios** "
-                   f"({share_a:.1%} A vs {share_b:.1%} B, {d:+.1%}). Attribution mass does not explain "
-                   f"the cold-start gap; the difference must lie in how the same features behave on "
-                   f"unseen repos rather than in which features are used.")
+                   f"({share_a:.1%} A vs {share_b:.1%} B, {_pp(d)}). Attribution mass on the FULL model "
+                   f"does not explain the cold-start gap by itself; the similarity points instead to how "
+                   f"the same features behave on unseen repos -- calibration drift, base-rate shift, or "
+                   f"those features' own values being less informative there -- rather than to which "
+                   f"features the model uses. This compares the FULL models' attribution, not the "
+                   f"NO_LABEL_REPLAY ablation Phase 4's cold-start finding is actually about: equal "
+                   f"attribution mass here is only indirect evidence about what happens once those "
+                   f"features are removed, since a model can re-route through correlated features.")
     return verdict
 
 
-def fairness_verdict(diff: dict, scenario: str) -> str:
+def _first_time_slice(fair_scenario: pd.DataFrame) -> dict:
+    """Pull the is_first_pr_here / first-time row's own (unpaired) gap and CI out of a
+    scenario's slice_gaps() table, for fairness_verdict's own-slice-vs-paired-diff check."""
+    row = fair_scenario[(fair_scenario["slice"] == "is_first_pr_here")
+                        & (fair_scenario["level"] == "first-time")].iloc[0]
+    return {"gap": float(row["gap"]), "gap_ci_lo": float(row["gap_ci_lo"]),
+            "gap_ci_hi": float(row["gap_ci_hi"])}
+
+
+def fairness_verdict(diff: dict, scenario: str, first_time: dict) -> str:
+    """`diff` -- the paired (repo-matched) first-time-minus-repeat difference -- is the
+    fairness-relevant statistic: it isolates whether newcomers are treated worse than
+    repeat contributors IN THE SAME REPOS, so a repo that is simply hard to predict
+    cancels out. `first_time` is the first-time slice's OWN gap, unpaired against
+    anything; it can be significant on its own even when the paired difference is not,
+    e.g. because newcomers happen to be concentrated in repos the model miscalibrates
+    overall. When the paired CI contains zero but the slice's own CI does not, that is a
+    mixed result, not simply "no gap" -- and a paired-CI bound sitting close to zero is a
+    marginal null, not a comfortable one. Handles all three directions: a real gap, a gap
+    running the other way, and no distinguishable gap (with or without the mixed case)."""
     if diff["ci_excludes_zero"] and diff["difference"] > 0:
         return (f"**Scenario {scenario}: the newcomer gap is real.** First-time contributors' predictions "
                 f"run {diff['difference']:+.3f} more pessimistic than repeat contributors', "
@@ -157,6 +201,29 @@ def fairness_verdict(diff: dict, scenario: str) -> str:
         return (f"**Scenario {scenario}: the gap runs the other way.** Repeat contributors are treated more "
                 f"pessimistically than newcomers by {-diff['difference']:.3f}, CI "
                 f"[{diff['ci_lo']:.3f}, {diff['ci_hi']:.3f}].")
+
+    slice_excludes_zero = first_time["gap_ci_lo"] > 0 or first_time["gap_ci_hi"] < 0
+    if slice_excludes_zero:
+        direction = "over-predicted as slow" if first_time["gap"] > 0 else "under-predicted as slow"
+        close_bound, side = ((diff["ci_lo"], "lower") if abs(diff["ci_lo"]) <= abs(diff["ci_hi"])
+                             else (diff["ci_hi"], "upper"))
+        marginal_clause = ""
+        if abs(close_bound) < 0.02:
+            towards = "below" if close_bound < 0 else "above"
+            marginal_clause = (f" Its {side} bound sits only {abs(close_bound):.3f} {towards} zero, though, "
+                               f"so this is a marginal null rather than a comfortable one: the paired "
+                               f"comparison cannot confirm a newcomer penalty at this sample size, but it "
+                               f"does not rule one out either.")
+        return (f"**Scenario {scenario}: the picture is mixed, not simply \"no gap.\"** Looked at on its "
+                f"own, the first-time slice is measurably {direction} — gap {first_time['gap']:+.3f}, "
+                f"CI [{first_time['gap_ci_lo']:.3f}, {first_time['gap_ci_hi']:.3f}], which excludes zero. "
+                f"But the fairness question this design targets is narrower than that: whether newcomers are "
+                f"treated *worse* than repeat contributors in the same repos, not whether newcomers' "
+                f"predictions are miscalibrated in isolation. On that paired difference "
+                f"({diff['difference']:+.3f}, CI [{diff['ci_lo']:.3f}, {diff['ci_hi']:.3f}], on "
+                f"{diff['n_first_time']:,} newcomer and {diff['n_repeat']:,} repeat rows) the model is not "
+                f"distinguishably harder on newcomers — the interval contains zero.{marginal_clause}")
+
     return (f"**Scenario {scenario}: no distinguishable newcomer gap.** The difference is "
             f"{diff['difference']:+.3f} with CI [{diff['ci_lo']:.3f}, {diff['ci_hi']:.3f}], which contains "
             f"zero — the model is not measurably more pessimistic about first-time contributors than about "
@@ -182,7 +249,11 @@ def _fairness_heading(scenario: str) -> str:
 
 
 def render(shift_df, imp_a, imp_b, share_a, share_b, worst, patterns, fair, diffs,
-           checks, figs, n_explained) -> str:
+           checks, figs, n_explained: dict[str, int]) -> str:
+    """n_explained maps scenario -> rows actually explained. Scenario A is one fold,
+    sampled once (<= SAMPLE_N). Scenario B pools five folds, EACH independently sampled
+    to <= SAMPLE_N, so it is not "per scenario" the same number -- reporting a single
+    shared count would understate B's explained sample by ~5x."""
     verdict = "PASS" if all(c["pass"] for c in checks) else "FAIL"
     fp = _fmt_wait_h(worst[worst["kind"] == "fp"].head(25))
     fn = _fmt_wait_h(worst[worst["kind"] == "fn"].head(25))
@@ -191,7 +262,8 @@ def render(shift_df, imp_a, imp_b, share_a, share_b, worst, patterns, fair, diff
     return f"""# Phase 6 — Interpretation, Error Analysis, Fairness
 
 Generated by `report6.py`. Exact TreeSHAP over the Phase 4 boosters; nothing retrained.
-{n_explained:,} explained rows per scenario (seeded sample).
+Explained rows: Scenario A {n_explained['A']:,} (one fold, seeded sample), Scenario B
+{n_explained['B']:,} (five folds pooled, each independently seeded-sampled to {attr.SAMPLE_N:,}).
 
 ## Gate: **{verdict}** (validity, not what the attributions say)
 
@@ -260,7 +332,7 @@ columns are not meant to be subtracted against each other.
 
 {chr(10).join(_fairness_heading(sc) + chr(10) + chr(10) + md(f) + chr(10) for sc, f in fair.items())}
 
-{chr(10).join(fairness_verdict(d, sc) for sc, d in diffs.items())}
+{chr(10).join(fairness_verdict(d, sc, _first_time_slice(fair[sc])) for sc, d in diffs.items())}
 """
 
 
@@ -332,7 +404,8 @@ def main() -> int:
             "dep_first": fig_dependence(sv["A"], X["A"], "is_first_pr_here", "A"),
             "dep_top": fig_dependence(sv["B"], X["B"], top_shift, "B")}
     DOC.write_text(render(shift_df, imp_a, imp_b, share_a, share_b, worst, patterns,
-                          fair, diffs, checks, figs, len(X["A"])), encoding="utf-8")
+                          fair, diffs, checks, figs,
+                          {"A": len(X["A"]), "B": len(X["B"])}), encoding="utf-8")
     ok = all(c["pass"] for c in checks)
     print(f"wrote {DOC}  gate={'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1
