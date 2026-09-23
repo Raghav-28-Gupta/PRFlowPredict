@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "check": "SHAP additivity vs raw margin (max |delta| < 1e-06)",
+    "value": {
+      "A": 2.4424906541753444e-14,
+      "B": 4.529709940470639e-14,
+      "A_full": 3.064215547965432e-14
+    },
+    "pass": true
+  },
+  {
+    "id": 2,
+    "check": "sampling stability: two seeds' top-10 rankings agree (Spearman >= 0.9)",
+    "value": 1.0,
+    "pass": true
+  },
+  {
+    "id": 3,
+    "check": "error rows come from Scenario A/FULL test set, 25 fp + 25 fn, labels match",
+    "value": {
+      "n_fp": 25,
+      "n_fn": 25,
+      "unknown": [],
+      "mismatched": []
+    },
+    "pass": true
+  },
+  {
+    "id": 4,
+    "check": "every fairness CI is finite and computed from >= 2 repos",
+    "value": {
+      "ci_finite": true,
+      "min_repos": 35
+    },
+    "pass": true
+  },
+  {
+    "id": 5,
+    "check": "all five data artifacts written and non-empty",
+    "value": {
+      "shift": 37,
+      "importance_A": 37,
+      "importance_B": 37,
+      "worst50": 50,
+      "fairness": 12
+    },
+    "pass": true
+  }
+]

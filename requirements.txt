@@ -1,8 +1,8 @@
 # PRFlowPredict — Phase 1 (collection) dependencies.
 # Python 3.13.1 on Windows 11.
 #
-# Phase 1 only. lightgbm / xgboost / scikit-survival / shap / streamlit belong to
-# Phases 4-7 and are deliberately NOT pinned here yet — see the blueprint's §6.
+# Phase 1 only. xgboost / scikit-survival / streamlit belong to Phases 4-7 and are
+# deliberately NOT pinned here yet — see the blueprint's §6.
 
 requests==2.32.5        # Stage 1 transport. Deliberately NOT `gh api graphql`:
                         # we need raw response bytes and the x-ratelimit-* /
@@ -21,3 +21,9 @@ pytest==8.4.1           # tests/
 # Phase 4
 lightgbm==4.7.0         # primary classifier (native API)
 optuna==5.0.0           # hyperparameter search on Scenario A training rows
+
+# Phase 6
+shap==0.52.0            # exact TreeSHAP attribution for the LightGBM boosters
+scipy==1.17.0           # report6.py's spearmanr(...).statistic needs scipy >= 1.9,
+                        # which returns a result object instead of a plain tuple;
+                        # older resolved versions raise AttributeError on gate check 2
