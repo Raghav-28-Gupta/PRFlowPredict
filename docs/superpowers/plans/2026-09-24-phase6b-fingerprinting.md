@@ -16,6 +16,8 @@
 
 So if a test fails for you as written, suspect a transcription slip or an environment difference before suspecting the plan, and say which in your report. Two tests were rewritten *because* the dry run showed their mutation survived: `test_bootstrap_draws_are_paired_across_scenarios` and `test_verdict_text_says_the_right_thing_for_its_cell`. Don't simplify either back.
 
+**What the dry run could not see, and what it cost.** The dry run imported a scratch copy of `experiment.py`, so `experiment.run`'s default output directories resolved to the scratch folder. In the real repo they are Phase 4's own `data/models/` and `data/predictions/`. Task 4's mutation #5 drops `refit_delta`'s explicit output directories, and its spy test delegates to the real `run()`. So when the mutation check ran for real, it **overwrote Phase 4's `A_NO_LABEL_REPLAY_fold0` booster and predictions with synthetic data**. Nothing reported it, because those directories are gitignored and invisible to `git status`. The artifact was restored and verified bit-exact against `data/phase4_runs.json`. Task 4's test file now carries an autouse fixture, `_phase4_directories_are_off_limits`, which redirects `run()`'s keyword defaults to `tmp_path` for every test in the file. That makes it structurally impossible for any test there, mutated or not, to reach Phase 4's directories. It was verified against the **real** `experiment` module, with both artifacts hashed and backed up first: under mutation #5, exactly the spy test fails and both files' SHA-256 are unchanged. **Do not remove that fixture.**
+
 ## Global Constraints
 
 - Seed everywhere: `20260912` (`splits.SEED`). Bootstrap: **2,000** draws, `np.random.default_rng(SEED)`, percentile **95%** intervals.
@@ -26,6 +28,7 @@ So if a test fails for you as written, suspect a transcription slip or an enviro
 - AUC-PR convention: Scenario A is one fold; **Scenario B is the mean of its per-fold AUC-PRs**. A fold lacking both classes is skipped.
 - Additivity (raw margin, max \|Δ\| < **1e-6**) and the refit (\|Δ\| < **1e-6**) are **HARD STOPS**: no verdict is written if either fails.
 - **Never** write to `data/phase4_runs.json`. **Never** overwrite a Phase 4 booster or prediction. The refit goes into a `tempfile.TemporaryDirectory`.
+- **No test may be able to reach `data/models/` or `data/predictions/`, even while a mandated mutation is applied.** Those directories are gitignored, so `git status` cannot detect damage to them. After any mutation check, verify real artifacts by hash or mtime, never by `git diff`.
 - `docs/phase6b_fingerprinting.md` is **fully generated**, with no hand-written section.
 - Tests in `tests/`, run with `python -m pytest tests -q`, and **output pristine**. **147** pass today.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -782,6 +785,20 @@ import featuresets as fs
 import fingerprint as fp
 import model
 import report6b as rb
+
+
+@pytest.fixture(autouse=True)
+def _phase4_directories_are_off_limits(monkeypatch, tmp_path):
+    """No test in this file may write to Phase 4's real data/models or data/predictions.
+
+    experiment.run's output directories are keyword-only DEFAULTS, so any code path that
+    forgets to pass them -- including a deliberately mutated refit_delta during a mutation
+    check -- would write straight into Phase 4's real artifacts. That happened once. This
+    redirects the defaults to tmp_path for every test in the file; monkeypatch restores them."""
+    monkeypatch.setattr(ex.run, "__kwdefaults__",
+                        {**ex.run.__kwdefaults__,
+                         "out_models": tmp_path / "phase4_models_redirected",
+                         "out_preds": tmp_path / "phase4_preds_redirected"})
 
 
 # ---------------------------------------------------------------------------
