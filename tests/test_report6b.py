@@ -9,6 +9,20 @@ import model
 import report6b as rb
 
 
+@pytest.fixture(autouse=True)
+def _phase4_directories_are_off_limits(monkeypatch, tmp_path):
+    """No test in this file may write to Phase 4's real data/models or data/predictions.
+
+    experiment.run's output directories are keyword-only DEFAULTS, so any code path that
+    forgets to pass them -- including a deliberately mutated refit_delta during a mutation
+    check -- would write straight into Phase 4's real artifacts. That happened once. This
+    redirects the defaults to tmp_path for every test in the file; monkeypatch restores them."""
+    monkeypatch.setattr(ex.run, "__kwdefaults__",
+                        {**ex.run.__kwdefaults__,
+                         "out_models": tmp_path / "phase4_models_redirected",
+                         "out_preds": tmp_path / "phase4_preds_redirected"})
+
+
 # ---------------------------------------------------------------------------
 # score_rows: the join and the selection, on a real booster in tmp_path
 # ---------------------------------------------------------------------------
