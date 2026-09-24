@@ -272,7 +272,13 @@ def test_verdict_text_states_the_crossover_only_when_it_holds():
 
 
 def _checks(fail=()):
-    return [{"id": i, "check": f"check {i}", "value": "ok", "pass": i not in fail} for i in range(1, 6)]
+    return [{"id": i, "check": f"check {i}",
+             "value": ({"non_constant": ["n_ci_workflows"] if 4 in fail else [],
+                        "equals_full_minus_no_snapshot": 4 not in fail,
+                        "n_no_repo_cols": 24 if 4 in fail else 25, "hygiene_ok": True}
+                       if i == 4 else "ok"),
+             "pass": i not in fail}
+            for i in range(1, 6)]
 
 
 def _frames():
@@ -306,3 +312,24 @@ def test_render_without_statistics_reports_no_verdict():
 def test_render_with_a_soft_failure_still_reports_the_verdict():
     doc = rb.render(_stats(), _checks(fail=(4,)), *_frames())
     assert "## Verdict" in doc and "**FAIL**" in doc and "HARD STOP" not in doc
+
+
+def test_render_states_the_feature_premise_only_when_check_4_passes():
+    doc = rb.render(_stats(), _checks(), *_frames())
+    assert "so each is constant within every repo" in doc
+    doc = rb.render(_stats(), _checks(fail=(4,)), *_frames())
+    assert "so each is constant within every repo" not in doc and "Gate check 4 failed" in doc
+
+
+def test_render_reports_the_observed_no_repo_column_count():
+    doc = rb.render(_stats(), _checks(), *_frames())
+    assert "(25 features)" in doc
+    doc = rb.render(_stats(), _checks(fail=(4,)), *_frames())
+    assert "(24 features)" in doc and "(25 features)" not in doc
+
+
+def test_render_flags_a_failed_gate_under_the_verdict():
+    doc = rb.render(_stats(), _checks(fail=(3,)), *_frames())
+    assert "## Verdict" in doc and "The validity gate failed" in doc
+    assert doc.index("## Verdict") < doc.index("The validity gate failed") < doc.index(rb.HEADLINE["SUPPORTED"])
+    assert "The validity gate failed" not in rb.render(_stats(), _checks(), *_frames())

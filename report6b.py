@@ -266,23 +266,35 @@ def render(s: dict | None, checks: list[dict], per_repo_df: pd.DataFrame | None,
                "not available.")
         return head + f"## No verdict is reported\n\n{why}\n\n## Gate\n\n{gate}\n"
     status = "PASS" if all(c["pass"] for c in checks) else "FAIL"
+    c4 = next(c for c in checks if c["id"] == 4)
+    gate_note = ""
+    if status == "FAIL":
+        failed = [c["id"] for c in checks if not c["pass"]]
+        gate_note = (f"**The validity gate failed** (check(s) {', '.join(map(str, failed))}): only checks 1 "
+                     "and 2 are hard stops, so the verdict below is still reported, but it must be read "
+                     "against the gate table below.\n\n")
     feats = ", ".join(f"`{c}`" for c in fp.REPO_FEATURES)
+    premise = ("Each is one 2026 snapshot value per repo, so each is constant within every repo. They are the "
+               "same eight Phase 4's `NO_SNAPSHOT` ablation removed. `repo_age_days_at_open` is excluded "
+               "because it varies within a repo, so the definition can only under-count fingerprinting.\n\n"
+               if c4["pass"] else
+               "Gate check 4 failed on this data, so the premise that these eight features are constant "
+               "within every repo and are exactly what Phase 4's `NO_SNAPSHOT` ablation removed is not "
+               "confirmed here. See the gate table below for what this run actually observed.\n\n")
     return (
         head
-        + f"## Verdict\n\n{verdict_text(s)}\n\n"
+        + f"## Verdict\n\n{gate_note}{verdict_text(s)}\n\n"
         + f"## Gate: **{status}** (validity, not what the verdict says)\n\n{gate}\n\n"
         + f"## 1. The eight repo-level features\n\n{feats}.\n\n"
-        + "Each is one 2026 snapshot value per repo, so each is constant within every repo. They are the same "
-          "eight Phase 4's `NO_SNAPSHOT` ablation removed. `repo_age_days_at_open` is excluded because it "
-          "varies within a repo, so the definition can only under-count fingerprinting.\n\n"
+        + premise
         + "## 2. Transfer test (SHAP)\n\n"
         + "For each repo, `c` is the mean summed SHAP contribution of the 8 features over its test rows "
           f"(log-odds) and `y` its actual slow rate. ρ_A = {s['rho_a']:+.3f}, ρ_B = {s['rho_b']:+.3f}; "
           f"ρ_A − ρ_B = {s['T']:+.3f}, 95% CI [{s['T_lo']:+.3f}, {s['T_hi']:+.3f}]: **{s['t_outcome']}**.\n\n"
         + f"{md(per_repo_df)}\n\n"
         + "## 3. Intervention\n\n"
-        + f"`NLR_NO_REPO` is `NO_LABEL_REPLAY` minus the 8 ({EXPECTED_NO_REPO_COLS} features), trained on the "
-          "same folds with the same tuned params. AUC-PR follows Phase 4: Scenario B is the mean of its "
+        + f"`NLR_NO_REPO` is `NO_LABEL_REPLAY` minus the 8 ({c4['value']['n_no_repo_cols']} features), trained "
+          "on the same folds with the same tuned params. AUC-PR follows Phase 4: Scenario B is the mean of its "
           "per-fold values.\n\n"
         + f"{md(fold_df)}\n\n"
         + f"Δ_A = {s['delta_a']:+.4f}, Δ_B = {s['delta_b']:+.4f}; Δ_B − Δ_A = {s['I']:+.4f}, "
