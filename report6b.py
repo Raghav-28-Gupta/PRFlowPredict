@@ -280,7 +280,7 @@ def render(s: dict | None, checks: list[dict], per_repo_df: pd.DataFrame | None,
                if c4["pass"] else
                "Gate check 4 failed on this data, so the premise that these eight features are constant "
                "within every repo and are exactly what Phase 4's `NO_SNAPSHOT` ablation removed is not "
-               "confirmed here. See the gate table below for what this run actually observed.\n\n")
+               "confirmed here. See the gate table above for what this run actually observed.\n\n")
     return (
         head
         + f"## Verdict\n\n{gate_note}{verdict_text(s)}\n\n"

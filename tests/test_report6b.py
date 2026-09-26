@@ -333,3 +333,13 @@ def test_render_flags_a_failed_gate_under_the_verdict():
     assert "## Verdict" in doc and "The validity gate failed" in doc
     assert doc.index("## Verdict") < doc.index("The validity gate failed") < doc.index(rb.HEADLINE["SUPPORTED"])
     assert "The validity gate failed" not in rb.render(_stats(), _checks(), *_frames())
+
+
+def test_render_points_the_reader_the_right_way_to_the_gate_table():
+    """Section 1 comes AFTER the gate table, the verdict BEFORE it. Each pointer must be
+    true from where it sits -- a reader who follows it must find the table."""
+    doc = rb.render(_stats(), _checks(fail=(4,)), *_frames())
+    gate_at = doc.index("## Gate")
+    verdict_part, sec1 = doc[:gate_at], doc[doc.index("## 1."):doc.index("## 2.")]
+    assert "gate table below" in verdict_part and "gate table above" not in verdict_part
+    assert "gate table above" in sec1 and "gate table below" not in sec1
