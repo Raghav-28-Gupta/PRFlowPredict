@@ -1,9 +1,13 @@
+import inspect
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
 
 import featuresets as fs
 import fingerprint as fp
+import report6b
 
 EIGHT = ["n_assignable_users", "n_mentionable_users", "owner_is_org", "has_codeowners",
          "has_pr_template", "has_contributing", "n_ci_workflows", "language_dominant"]
@@ -250,3 +254,23 @@ def test_bootstrap_refuses_rows_missing_a_column():
     a, b_ = _rows(TRACK, A_FOLDS), _rows(SCRAMBLED, B_FOLDS)
     with pytest.raises(ValueError, match="p_no_repo"):
         fp.paired_repo_bootstrap(a.drop(columns="p_no_repo"), b_, n=10)
+
+
+# ---------------------------------------------------------------------------
+# The pre-registered defaults (spec section 5.4) -- main() relies on these being unpinned
+# by any call-site override.
+# ---------------------------------------------------------------------------
+
+def test_paired_repo_bootstrap_defaults_are_pinned():
+    params = inspect.signature(fp.paired_repo_bootstrap).parameters
+    assert fp.SEED == 20260912
+    assert params["n"].default == 2000
+    assert params["seed"].default == fp.SEED
+    assert params["ci"].default == 0.95
+
+
+def test_main_calls_bootstrap_without_overriding_the_pre_registered_defaults():
+    src = inspect.getsource(report6b.main)
+    match = re.search(r"fp\.paired_repo_bootstrap\([^)]*\)", src)
+    assert match is not None
+    assert match.group(0) == 'fp.paired_repo_bootstrap(rows["A"], rows["B"])'

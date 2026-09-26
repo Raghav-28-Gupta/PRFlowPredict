@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -7,6 +9,7 @@ import featuresets as fs
 import fingerprint as fp
 import model
 import report6b as rb
+import tracking
 
 
 @pytest.fixture(autouse=True)
@@ -119,6 +122,25 @@ def test_coverage_flags_a_repo_held_out_twice():
     assert rb.coverage(*_cov(twice=True))["b_each_once"] is False
 
 
+def test_coverage_flags_a_repo_only_in_b():
+    """rows_b has r2, which rows_a lacks: the pairing premise (spec section 5) is broken."""
+    runs = [{"scenario": "B", "test_repos": ["r0", "r1"]}]
+    rows_a = pd.DataFrame({"repo": ["r0", "r1"]})
+    rows_b = pd.DataFrame({"repo": ["r0", "r1", "r2"]})
+    assert rb.coverage(runs, rows_a, rows_b)["same_repo_set"] is False
+
+
+def test_coverage_flags_a_repo_never_held_out():
+    """r1 is in both rows_a and rows_b (same_repo_set holds) but no B run ever held it out --
+    b_each_once must catch this even though no repo was held out twice."""
+    runs = [{"scenario": "B", "test_repos": ["r0"]}]
+    rows_a = pd.DataFrame({"repo": ["r0", "r1"]})
+    rows_b = pd.DataFrame({"repo": ["r0", "r1"]})
+    cov = rb.coverage(runs, rows_a, rows_b)
+    assert cov["same_repo_set"] is True
+    assert cov["b_each_once"] is False
+
+
 def test_fold_table_scores_each_fold_on_its_own_rows():
     rows = pd.DataFrame({"fold": [0, 0, 1, 1], "is_slow": [0, 1, 0, 1],
                          "p_nlr": [0.2, 0.9, 0.9, 0.2], "p_no_repo": [0.9, 0.2, 0.2, 0.9]})
@@ -127,6 +149,35 @@ def test_fold_table_scores_each_fold_on_its_own_rows():
     assert ft.loc[1, "auc_pr_nlr"] == pytest.approx(0.5)
     assert ft.loc[0, "delta"] == pytest.approx(ft.loc[0, "auc_pr_no_repo"] - ft.loc[0, "auc_pr_nlr"])
     assert ft["n_test"].tolist() == [2, 2]
+
+
+# ---------------------------------------------------------------------------
+# train_no_repo: the intervention itself (spec section 5.3)
+# ---------------------------------------------------------------------------
+
+def test_train_no_repo_trains_on_exactly_the_no_repo_columns(synthetic_table, tmp_path, monkeypatch):
+    """synthetic_table has only 2 repos, so Scenario B's 5 folds would fail on it -- restrict
+    to Scenario A. Must pass tmp dirs explicitly and patch tracking.log: train_no_repo's own
+    defaults point at the real data/models, data/predictions and data/experiments.csv."""
+    t = ex.load_table_frame(synthetic_table())
+    monkeypatch.setattr(ex, "SCENARIOS", ("A",))
+    recorded = []
+    monkeypatch.setattr(tracking, "log", lambda row: recorded.append(row))
+
+    runs = rb.train_no_repo(t, model.DEFAULT_PARAMS, "deadbeef",
+                            out_models=tmp_path / "m", out_preds=tmp_path / "p")
+
+    assert len(runs) == 1
+    model_path = Path(runs[0]["model_path"])
+    assert tmp_path in model_path.parents
+
+    booster = model.load(model_path)
+    assert booster.feature_name() == fp.nlr_no_repo_cols()
+    assert not (set(booster.feature_name()) & set(fp.REPO_FEATURES))
+
+    assert len(recorded) == 1
+    assert recorded[0]["features"] == "NLR_NO_REPO"
+    assert recorded[0]["model"] == "lgbm"
 
 
 # ---------------------------------------------------------------------------
@@ -195,11 +246,19 @@ def _m_varies(d): d["integrity"]["non_constant"] = ["n_ci_workflows"]
 def _m_nan(d): d["intervals"]["I_hi"] = float("nan")
 def _m_twice(d): d["cov"]["b_each_once"] = False
 def _m_empty(d): d["artifacts"]["phase6b_reliance"] = 0
+def _m_c4_not_equals_no_snapshot(d): d["integrity"]["equals_full_minus_no_snapshot"] = False
+def _m_c4_wrong_col_count(d): d["integrity"]["n_no_repo_cols"] = 24
+def _m_c4_hygiene_fails(d): d["integrity"]["hygiene_ok"] = False
+def _m_c5_wrong_repo_count(d): d["cov"]["n_repos"] = 38
+def _m_c3_missing_a_booster(d): d["same_rows"] = {t: True for t in TAGS[:5]}
+def _m_c2_negative_refit(d): d["refit_delta"] = -2e-4          # pins abs() on the refit delta
 
 
 @pytest.mark.parametrize("mutate,expected", [
     (_m_additivity, 1), (_m_booster_missing, 1), (_m_refit, 2), (_m_no_refit, 2), (_m_rows, 3),
     (_m_varies, 4), (_m_nan, 5), (_m_twice, 5), (_m_empty, 5),
+    (_m_c4_not_equals_no_snapshot, 4), (_m_c4_wrong_col_count, 4), (_m_c4_hygiene_fails, 4),
+    (_m_c5_wrong_repo_count, 5), (_m_c3_missing_a_booster, 3), (_m_c2_negative_refit, 2),
 ])
 def test_gate_each_failure_flips_only_its_own_check(mutate, expected):
     d = _ok()
@@ -271,6 +330,29 @@ def test_verdict_text_states_the_crossover_only_when_it_holds():
     assert "does not hold" in no and "The strong form holds" not in no
 
 
+def test_verdict_text_does_not_confuse_the_transfer_test_with_the_intervention():
+    """_stats() gives both tests 'confirms' and no test checks the rho/delta figures, so
+    swapping t_outcome/i_outcome, rho_a/rho_b, delta_a/delta_b, or the reliance words would
+    all pass silently. Use distinct, asymmetric values so a swap is visible."""
+    kw = dict(t_outcome="confirms", i_outcome="inconclusive", verdict="PARTIAL_SHAP_ONLY",
+              rho_a=0.67, rho_b=0.32, delta_a=-0.040, delta_b=-0.004, reliance="higher")
+    text = rb.verdict_text(_stats(**kw))
+    lines = text.split("\n")
+    transfer = next(l for l in lines if l.startswith("- SHAP transfer test"))
+    intervention = next(l for l in lines if l.startswith("- Intervention"))
+    assert "confirms" in transfer and "inconclusive" not in transfer
+    assert "inconclusive" in intervention and "confirms" not in intervention
+
+    assert "ρ_A = +0.67" in text and "ρ_B = +0.32" in text
+    assert "ρ_A = +0.32" not in text and "ρ_B = +0.67" not in text
+
+    assert "-0.040 on A and -0.004 on B" in text
+
+    assert "higher on B" in text
+    text_lower = rb.verdict_text(_stats(**{**kw, "reliance": "lower"}))
+    assert "lower on B" in text_lower and "higher on B" not in text_lower
+
+
 def _checks(fail=()):
     return [{"id": i, "check": f"check {i}",
              "value": ({"non_constant": ["n_ci_workflows"] if 4 in fail else [],
@@ -289,6 +371,24 @@ def _frames():
     rel = pd.DataFrame({"feature": ["n_mentionable_users"], "share_a": [0.04], "share_b": [0.17],
                         "is_repo_feature": [True]})
     return per_repo, folds, rel
+
+
+def test_render_does_not_confuse_the_transfer_test_with_the_intervention_in_sections_2_and_3():
+    """Sections 2 and 3 repeat rho_A/rho_B/T and Delta_A/Delta_B/I outside verdict_text's own
+    prose -- pin them here too, with the same asymmetric values, so a swap there is caught."""
+    kw = dict(t_outcome="confirms", i_outcome="inconclusive", verdict="PARTIAL_SHAP_ONLY",
+              rho_a=0.67, rho_b=0.32, delta_a=-0.040, delta_b=-0.004, reliance="higher")
+    doc = rb.render(_stats(**kw), _checks(), *_frames())
+    sec2 = doc[doc.index("## 2."):doc.index("## 3.")]
+    sec3 = doc[doc.index("## 3."):doc.index("## 4.")]
+
+    assert "ρ_A = +0.670, ρ_B = +0.320" in sec2
+    assert "ρ_A = +0.320" not in sec2 and "ρ_B = +0.670" not in sec2
+    assert "**confirms**" in sec2 and "**inconclusive**" not in sec2
+
+    assert "Δ_A = -0.0400, Δ_B = -0.0040" in sec3
+    assert "Δ_A = -0.0040" not in sec3 and "Δ_B = -0.0400" not in sec3
+    assert "**inconclusive**" in sec3 and "**confirms**" not in sec3
 
 
 def test_render_puts_the_verdict_first():
