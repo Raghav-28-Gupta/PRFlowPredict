@@ -21,8 +21,14 @@ def _all_runs():
     return runs
 
 
+PHASE4_SETS = ("FULL", "NO_SNAPSHOT", "NO_LABEL_REPLAY", "PR_ONLY")
+
+
 def _experiments(sha, n=24):
-    return pd.DataFrame({"model": ["lgbm"] * n, "params": [sha] * n, "p10_ci_lo": [0.5] * n, "p10_ci_hi": [0.7] * n})
+    # Mirrors the real data/experiments.csv schema, which always carries `features`.
+    return pd.DataFrame({"model": ["lgbm"] * n, "params": [sha] * n,
+                         "features": [PHASE4_SETS[i % 4] for i in range(n)],
+                         "p10_ci_lo": [0.5] * n, "p10_ci_hi": [0.7] * n})
 
 
 def _pool(a_median=64.0, b_median=433.0):
@@ -89,6 +95,18 @@ def test_gate_check4_ignores_rows_from_other_models_or_params():
     # Mixed: 24 matching + 5 unrelated rows -> still passes (the filter counts, not the length).
     mixed = pd.concat([_experiments("s"), _experiments("OTHER_SHA", n=5)], ignore_index=True)
     assert report4.gate_checks(_all_runs(), "s", mixed, 0.0)[3]["pass"] is True
+
+
+def test_gate_check4_ignores_rows_a_later_phase_logs():
+    """experiments.csv is shared across phases (blueprint §5). Six lgbm rows a later phase
+    logs under the SAME params sha must not count toward Phase 4's 24."""
+    later = _experiments("s", n=6)
+    later["features"] = "NLR_NO_REPO"
+    both = pd.concat([_experiments("s"), later], ignore_index=True)      # 30 lgbm rows, one sha
+    assert report4.gate_checks(_all_runs(), "s", both, 0.0)[3]["pass"] is True
+    # and a genuinely short Phase 4 log still fails, even with the later rows present
+    short = pd.concat([_experiments("s", n=23), later], ignore_index=True)
+    assert report4.gate_checks(_all_runs(), "s", short, 0.0)[3]["pass"] is False
 
 
 def test_gate_check4_fails_on_non_finite_ci():

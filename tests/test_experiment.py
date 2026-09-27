@@ -1,7 +1,9 @@
 import json
 import numpy as np
 import pandas as pd
+import pytest
 import experiment as ex
+import featuresets as fs
 import model
 import splits
 
@@ -55,3 +57,43 @@ def test_run_scenario_b_repos_disjoint(synthetic_table, tmp_path):
 def test_params_sha_is_stable(tmp_path):
     p = tmp_path / "params.json"; p.write_text('{"best_params": {"num_leaves": 8}}', encoding="utf-8")
     assert ex.params_sha(p) == ex.params_sha(p) and len(ex.params_sha(p)) == 12
+
+
+def test_run_cols_none_is_unchanged_behaviour(synthetic_table, tmp_path):
+    """Passing the registered set explicitly under a NEW name must reproduce the name lookup
+    exactly. The new name matters: with name="FULL", a cols argument that was silently
+    ignored would still pass."""
+    t = ex.load_table_frame(synthetic_table())
+    tr, te = ex.folds_for("A", t)[0]
+    ref = ex.run("A", 0, "FULL", t, model.DEFAULT_PARAMS, tr, te,
+                 out_models=tmp_path / "m1", out_preds=tmp_path / "p1")
+    new = ex.run("A", 0, "FULL_EXPLICIT", t, model.DEFAULT_PARAMS, tr, te,
+                 out_models=tmp_path / "m2", out_preds=tmp_path / "p2", cols=fs.FEATURE_SETS["FULL"])
+    a = pd.read_parquet(ref["pred_path"])["p_hat"].to_numpy()
+    b = pd.read_parquet(new["pred_path"])["p_hat"].to_numpy()
+    assert np.array_equal(a, b)
+    assert ref["auc_pr"] == new["auc_pr"]
+    assert (tmp_path / "m2" / "A_FULL_EXPLICIT_fold0.txt").exists()
+
+
+def test_run_cols_is_actually_used(synthetic_table, tmp_path):
+    """Dropping the planted signal column must change the predictions. This proves the
+    override reaches the model rather than being accepted and discarded."""
+    t = ex.load_table_frame(synthetic_table())
+    tr, te = ex.folds_for("A", t)[0]
+    full = ex.run("A", 0, "FULL", t, model.DEFAULT_PARAMS, tr, te,
+                  out_models=tmp_path / "m1", out_preds=tmp_path / "p1")
+    fewer = [c for c in fs.FEATURE_SETS["FULL"] if c != "body_len"]
+    cut = ex.run("A", 0, "FULL_MINUS_BODY", t, model.DEFAULT_PARAMS, tr, te,
+                 out_models=tmp_path / "m2", out_preds=tmp_path / "p2", cols=fewer)
+    a = pd.read_parquet(full["pred_path"])["p_hat"].to_numpy()
+    b = pd.read_parquet(cut["pred_path"])["p_hat"].to_numpy()
+    assert not np.array_equal(a, b)
+
+
+def test_run_cols_still_enforces_hygiene(synthetic_table, tmp_path):
+    t = ex.load_table_frame(synthetic_table())
+    tr, te = ex.folds_for("A", t)[0]
+    with pytest.raises(ValueError):
+        ex.run("A", 0, "LEAKY", t, model.DEFAULT_PARAMS, tr, te,
+               out_models=tmp_path / "m", out_preds=tmp_path / "p", cols=["body_len", "is_slow"])

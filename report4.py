@@ -70,7 +70,11 @@ def gate_checks(runs: list[dict], params_sha: str, experiments: pd.DataFrame,
 
     # 4. every run has a CI and all 24 are logged under this params sha
     ci_ok = all(np.isfinite(r["p10_ci_lo"]) and np.isfinite(r["p10_ci_hi"]) for r in runs)
-    logged = int(((experiments["model"] == "lgbm") & (experiments["params"] == params_sha)).sum()) if len(experiments) else 0
+    # experiments.csv is shared across phases (blueprint §5), so count only Phase 4's own
+    # feature sets: a later phase logging lgbm rows under the same params sha must not
+    # break this check.
+    logged = int(((experiments["model"] == "lgbm") & (experiments["params"] == params_sha)
+                  & experiments["features"].isin(list(fs.FEATURE_SETS))).sum()) if len(experiments) else 0
     c4 = {"id": 4, "check": f"all {N_RUNS} runs have bootstrap CIs and are in experiments.csv under params sha",
           "value": {"runs": len(runs), "logged": logged, "ci_ok": ci_ok},
           "pass": ci_ok and len(runs) == N_RUNS and logged == N_RUNS}

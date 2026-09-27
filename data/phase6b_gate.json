@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "check": "SHAP additivity vs raw margin on all 6 NLR boosters (max |delta| < 1e-06)",
+    "value": {
+      "A_fold0": 3.419486915845482e-14,
+      "B_fold0": 3.297362383136715e-14,
+      "B_fold1": 3.5416114485542494e-14,
+      "B_fold2": 2.7422508708241367e-14,
+      "B_fold3": 2.886579864025407e-14,
+      "B_fold4": 3.219646771412954e-14
+    },
+    "pass": true
+  },
+  {
+    "id": 2,
+    "check": "A/NLR refit via the cols= code path reproduces Phase 4's saved AUC-PR (|delta| < 1e-06)",
+    "value": 0.0,
+    "pass": true
+  },
+  {
+    "id": 3,
+    "check": "every NLR_NO_REPO fold has exactly the NLR fold's test rows",
+    "value": {
+      "A_fold0": true,
+      "B_fold0": true,
+      "B_fold1": true,
+      "B_fold2": true,
+      "B_fold3": true,
+      "B_fold4": true
+    },
+    "pass": true
+  },
+  {
+    "id": 4,
+    "check": "the 8 repo features are constant within every repo and equal FULL - NO_SNAPSHOT; NLR_NO_REPO is NLR minus exactly them (25 columns)",
+    "value": {
+      "non_constant": [],
+      "equals_full_minus_no_snapshot": true,
+      "n_no_repo_cols": 25,
+      "hygiene_ok": true
+    },
+    "pass": true
+  },
+  {
+    "id": 5,
+    "check": "A and B cover the same 39 repos, B holds each out once, every interval is finite, every artifact is written",
+    "value": {
+      "n_repos": 39,
+      "same_repo_set": true,
+      "b_each_once": true,
+      "intervals_finite": true,
+      "artifacts": {
+        "phase6b_transfer": 39,
+        "phase6b_intervention": 6,
+        "phase6b_reliance": 33,
+        "phase6b_runs": 6
+      }
+    },
+    "pass": true
+  }
+]

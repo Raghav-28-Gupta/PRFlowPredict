@@ -58,8 +58,12 @@ def params_sha(path: Path | None = None) -> str:
 
 def run(scenario: str, fold: int, name: str, table: pd.DataFrame, params: dict,
         train_idx: np.ndarray, test_idx: np.ndarray, *, seed: int = SEED,
-        out_models: Path = MODELS_DIR, out_preds: Path = PRED_DIR) -> dict:
-    cols = fs.FEATURE_SETS[name]
+        out_models: Path = MODELS_DIR, out_preds: Path = PRED_DIR,
+        cols: list[str] | None = None) -> dict:
+    # `cols` lets a later phase train a feature set WITHOUT registering it in
+    # fs.FEATURE_SETS: main() trains every registered set and writes them all to
+    # phase4_runs.json, so registering one would silently change a Phase 4 re-run.
+    cols = fs.FEATURE_SETS[name] if cols is None else list(cols)
     fs.assert_hygiene(cols)
     tr, te = table.loc[train_idx], table.loc[test_idx]
 
