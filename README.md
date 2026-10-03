@@ -24,6 +24,17 @@ stalling.
 
 ![AUC-PR on seen and unseen repos, with and without the repo's slow-rate history, against the trailing-rate baseline](figures/headline_transfer.png)
 
+## Try the demo
+
+A small Streamlit app replays the 2026 test period: pick a repo and a day to see the PRs that
+were waiting for a first review, ranked by the risk score each got when it was opened, next to
+what actually happened. A toggle swaps in the model that never saw that repo.
+
+```bash
+pip install -r demo/requirements.txt
+streamlit run demo/app.py
+```
+
 ## Why the numbers can be trusted
 
 - **Leakage prevented by construction.** History features are computed by replaying each
@@ -93,3 +104,4 @@ each step overwrites.
 | Modelling | `splits.py` · `model.py` · `baseline.py` · `metrics.py` · `tune.py` · `experiment.py` · `tracking.py` · `report4.py` |
 | Interpretation | `attribution.py` · `errors.py` · `fairness.py` · `report6.py` · `fingerprint.py` · `report6b.py` |
 | Write-up | `writeup_figures.py` · `writeup_claims.py` |
+| Demo | `build_demo_data.py` · `demo/triage.py` · `demo/app.py` |

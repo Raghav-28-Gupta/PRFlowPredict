@@ -243,6 +243,7 @@ From the committed state, with no GitHub access:
 pip install -r requirements.txt
 python -m pytest tests -q        # includes the check of every number in this report
 python writeup_figures.py        # regenerates both headline figures
+streamlit run demo/app.py        # the demo, from its committed extract
 ```
 
 The full pipeline needs a GitHub token and a multi-hour collection, because raw data is not
@@ -262,6 +263,7 @@ python experiment.py
 python report4.py
 python report6.py
 python report6b.py
+python build_demo_data.py
 ```
 
 Re-running some steps overwrites committed results:
