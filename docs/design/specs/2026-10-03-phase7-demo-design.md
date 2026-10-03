@@ -140,6 +140,13 @@ with ties broken alphabetically. Both are computed from the extract by `triage`.
    drivers are model attribution, not cause; and the title shown is the title at collection
    time.
 
+**Added after deployment: a Look up a PR tab.** The triage list moved into a first tab, and a
+second tab looks up one PR. It accepts a PR link, `owner/repo#N`, or a bare number in the
+sidebar's repo, or a **Random PR** button fills it in. The card shows the PR's title and
+link, when it opened, what happened, and for both models the score, its rank among the
+repo's other replayed PRs, and the top drivers. Input that isn't a replayed PR gets a message
+saying what the replay covers. Titles and drivers are Markdown-escaped.
+
 **Empty list.** When no PR is awaiting review at the moment, a message says so. On early
 January days it adds that only PRs opened from 2026-01-01 have scores.
 

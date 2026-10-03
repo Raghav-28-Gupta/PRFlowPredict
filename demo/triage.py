@@ -5,6 +5,7 @@ build_demo_data.py). Imports pandas only: the deployed app installs demo/require
 not the project's full requirements."""
 from __future__ import annotations
 
+import re
 from datetime import date
 from pathlib import Path
 
@@ -16,6 +17,8 @@ DRIVERS = {"A": "drivers_a", "B": "drivers_b"}
 TOP_K = 3
 FIRST_DAY, LAST_DAY, DEFAULT_DAY = date(2026, 1, 2), date(2026, 6, 30), date(2026, 4, 1)
 EARLY_JANUARY = date(2026, 1, 14)      # until here, few scored PRs can have been waiting yet
+PR_LINK = re.compile(r"github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)")
+PR_REF = re.compile(r"^([^/\s#]+/[^/\s#]+)#(\d+)$")
 
 
 def load(path: Path | None = None) -> pd.DataFrame:
@@ -91,3 +94,40 @@ def default_repo(prs: pd.DataFrame, at: pd.Timestamp) -> str:
     if counts.empty:
         return repos(prs)[0]
     return min(counts.index, key=lambda r: (-counts[r], r))
+
+
+def parse_pr_ref(text: str, default_repo: str) -> tuple[str, int] | None:
+    """A PR link, `owner/repo#N`, or a bare number (looked up in default_repo); else None."""
+    text = text.strip()
+    link = PR_LINK.search(text) or PR_REF.match(text)
+    if link:
+        return link.group(1), int(link.group(2))
+    bare = text.lstrip("#")
+    return (default_repo, int(bare)) if bare.isdigit() else None
+
+
+def find_pr(prs: pd.DataFrame, repo: str, number: int) -> pd.DataFrame:
+    """The replayed PR as a one-row frame (empty if it is not in the replay). GitHub treats
+    owner/repo case-insensitively, so this does too."""
+    return prs[(prs["repo"].str.lower() == repo.lower()) & (prs["number"] == number)]
+
+
+def rank_in_repo(prs: pd.DataFrame, pr: pd.DataFrame, scenario: str) -> tuple[float, int]:
+    """(share of the repo's other replayed PRs that scored strictly lower, how many others)."""
+    score = SCORES[scenario]
+    row = pr.iloc[0]
+    others = prs.loc[(prs["repo"] == row["repo"]) & (prs["pr_id"] != row["pr_id"]), score]
+    return (float((others < row[score]).mean()) if len(others) else 0.0), len(others)
+
+
+def random_pr(prs: pd.DataFrame, seed: int | None = None) -> pd.DataFrame:
+    """One replayed PR at random, as a one-row frame."""
+    return prs.sample(1, random_state=seed)
+
+
+MD_SPECIAL = re.compile(r"([\\`*_{}\[\]()#+\-!|>~<])")
+
+
+def md_escape(text: str) -> str:
+    """Backslash-escape Markdown's special characters, so a PR title renders exactly as typed."""
+    return MD_SPECIAL.sub(r"\\\1", text)

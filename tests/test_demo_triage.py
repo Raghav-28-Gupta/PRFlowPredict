@@ -125,3 +125,54 @@ def test_default_repo_when_nobody_is_waiting_is_the_first_alphabetically():
 def test_load_works_from_any_working_directory(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     assert len(triage.load()) > 0
+
+
+# ---------------------------------------------------------------------------
+# looking up one PR
+# ---------------------------------------------------------------------------
+
+def test_parse_accepts_a_pr_link_with_or_without_extra_parts():
+    for text in ("https://github.com/o/r/pull/12", "https://github.com/o/r/pull/12/files",
+                 "github.com/o/r/pull/12?x=1", "  https://github.com/o/r/pull/12  "):
+        assert triage.parse_pr_ref(text, "d/d") == ("o/r", 12), text
+
+
+def test_parse_accepts_owner_repo_hash_number():
+    assert triage.parse_pr_ref("o/r#12", "d/d") == ("o/r", 12)
+
+
+def test_parse_resolves_a_bare_number_in_the_default_repo():
+    assert triage.parse_pr_ref("12", "d/d") == ("d/d", 12)
+    assert triage.parse_pr_ref(" #12 ", "d/d") == ("d/d", 12)
+
+
+def test_parse_rejects_anything_else():
+    for text in ("", "   ", "hello", "o/r", "https://github.com/o/r/issues/12", "#"):
+        assert triage.parse_pr_ref(text, "d/d") is None, text
+
+
+def test_find_pr_matches_the_repo_case_insensitively_and_misses_cleanly():
+    df = _prs((1, -H, None, None, 0.5, False))
+    assert triage.find_pr(df, "O/R", 1)["number"].tolist() == [1]
+    assert triage.find_pr(df, "o/r", 99).empty and triage.find_pr(df, "x/y", 1).empty
+
+
+def test_rank_in_repo_is_the_share_of_the_repos_other_prs_scored_lower():
+    df = pd.concat([_prs((1, -H, None, None, 0.9, False), (2, -H, None, None, 0.5, False),
+                         (3, -H, None, None, 0.5, False), (4, -H, None, None, 0.1, False)),
+                    _prs((1, -H, None, None, 0.0, False), repo="x/y")], ignore_index=True)
+    rank = lambda n, sc="A": triage.rank_in_repo(df, triage.find_pr(df, "o/r", n), sc)
+    assert rank(1) == (1.0, 3)                       # the riskiest: higher than all three others
+    assert rank(4) == (0.0, 3)                       # the least risky
+    assert rank(2) == (pytest.approx(1 / 3), 3)      # a tie does not count as lower
+    assert rank(4, "B") == (1.0, 3)                  # the unseen model's own score (1 - score_a here)
+
+
+def test_random_pr_is_one_replayed_row_and_reproducible_with_a_seed():
+    df = _prs(*[(n, -H, None, None, n / 10, False) for n in range(1, 6)])
+    a, b = triage.random_pr(df, seed=3), triage.random_pr(df, seed=3)
+    assert len(a) == 1 and a["pr_id"].tolist() == b["pr_id"].tolist()
+
+
+def test_md_escape_keeps_a_title_from_turning_into_markdown():
+    assert triage.md_escape("fix *bold* [x](y) `code` #1") == r"fix \*bold\* \[x\]\(y\) \`code\` \#1"

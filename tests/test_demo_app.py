@@ -101,6 +101,38 @@ def test_demo_requirements_pin_only_what_the_app_needs_at_the_root_versions():
     assert all(demo[p] == root[p] for p in demo)
 
 
+def _lookup(at: AppTest, text: str) -> AppTest:
+    at.text_input(key="pr_ref").input(text).run()
+    return at
+
+
+def test_looking_up_a_pr_link_shows_both_models_scores_and_what_happened():
+    prs = triage.load()
+    pr = prs.iloc[[100]]
+    row = pr.iloc[0]
+    at = _lookup(_app(), row["url"])
+    assert not at.exception
+    assert [m.value for m in at.metric] == [f"{row['score_a']:.2f}", f"{row['score_b']:.2f}"]
+    shown = " ".join(m.value for m in at.markdown)
+    assert triage.outcome(pr).iloc[0] in shown
+    share, n = triage.rank_in_repo(prs, pr, "A")
+    assert f"Higher than {share:.0%} of this repo's other {n:,} replayed PRs" in shown
+
+
+def test_an_unknown_pr_says_it_is_not_in_the_replay():
+    at = _lookup(_app(), "nobody/nothing#1")
+    assert not at.exception and len(at.metric) == 0
+    assert "Not in the replay" in at.warning[0].value
+
+
+def test_random_pr_fills_the_box_and_shows_its_card():
+    at = _app()
+    at.button(key="random_pr").click().run()
+    assert not at.exception
+    assert re.fullmatch(r"[^/\s]+/[^#\s]+#\d+", at.text_input(key="pr_ref").value)
+    assert len(at.metric) == 2
+
+
 def test_the_app_hard_codes_no_result_number():
     assert re.search(r"\b0\.\d{3}\b", APP.read_text(encoding="utf-8")) is None
 
@@ -114,7 +146,7 @@ def test_the_app_avoids_retracted_phrasing(pattern, reason):
 def test_the_demo_imports_only_what_its_own_requirements_install():
     """Streamlit Cloud installs demo/requirements.txt, not the project's: no sklearn, lightgbm,
     shap, or project module may be imported by the deployed files."""
-    allowed = {"__future__", "datetime", "pathlib", "sys", "streamlit", "pandas", "triage"}
+    allowed = {"__future__", "datetime", "pathlib", "re", "sys", "streamlit", "pandas", "triage"}
     for name in ("app.py", "triage.py"):
         tree = ast.parse((APP.parent / name).read_text(encoding="utf-8"))
         mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
