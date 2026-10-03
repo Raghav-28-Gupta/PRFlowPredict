@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13, shap 0.52.0 (TreeExplainer), lightgbm 4.7.0, pandas, numpy, scipy (`spearmanr`), matplotlib, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-09-22-phase6-interpretation-design.md`
+**Spec:** `docs/design/specs/2026-09-22-phase6-interpretation-design.md`
 
 **Three facts the spec did not pin down, established by inspecting the artifacts:**
 1. Prediction parquets contain exactly `pr_id, repo, created_at, is_slow, p_hat, baseline_score, is_first_pr_here, created_hour_utc, diff_is_exact` — **no `number`, no `wait_h`, and no feature values.** The spec's §5 error table needs all three. `experiment.load_table()` (38,444 rows) has `number`, `wait_h` and every feature column; `report6.main` joins them on `pr_id` before calling `errors.worst_rows`.

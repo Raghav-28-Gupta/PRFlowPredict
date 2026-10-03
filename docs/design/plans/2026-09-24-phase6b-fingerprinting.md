@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13, lightgbm 4.7.0, shap 0.52.0, scipy 1.17.0 (`spearmanr`), scikit-learn (`average_precision_score` via `metrics.auc_pr`), pandas, numpy, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md`. Committed at `4a5426f` before any code; that commit is the pre-registration.
+**Spec:** `docs/design/specs/2026-09-24-phase6b-fingerprinting-design.md`. Committed at `4a5426f` before any code; that commit is the pre-registration.
 
 **This plan's code was dry-run before it was committed.** Every code block below was extracted, assembled into the files exactly as the tasks describe, and run in a scratch copy against the real repo modules:
 - **98 tests passed** across the four touched test files, with pristine output.
@@ -367,7 +367,7 @@ model uses repo-level features, which are constant within a repo, to IDENTIFY re
 memorise their base rates. That is label replay by proxy, and it cannot transfer to a repo
 the model has never seen.
 
-Pre-registered in docs/superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md,
+Pre-registered in docs/design/specs/2026-09-24-phase6b-fingerprinting-design.md,
 committed before any of this ran. Every function here is pure; report6b.py does the I/O."""
 from __future__ import annotations
 
@@ -949,7 +949,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'report6b'`.
 Tests whether the NO_LABEL_REPLAY model's cold-start failure is repo fingerprinting -- the
 model identifying repos by their static attributes and replaying their base rates.
 
-Pre-registered in docs/superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md,
+Pre-registered in docs/design/specs/2026-09-24-phase6b-fingerprinting-design.md,
 committed before any of this ran. The document this writes is FULLY GENERATED: there is no
 hand-written section, because Phase 6's hand-written section 4 showed what one costs inside
 a generated document -- a re-run silently destroys it.
@@ -1298,7 +1298,7 @@ DOC = ROOT / "docs" / "phase6b_fingerprinting.md"
 DATA = ROOT / "data"
 RUNS_JSON = DATA / "phase6b_runs.json"
 GATE_JSON = DATA / "phase6b_gate.json"
-SPEC = "docs/superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md"
+SPEC = "docs/design/specs/2026-09-24-phase6b-fingerprinting-design.md"
 
 TOL = 1e-6
 EXPECTED_BOOSTERS = 6          # 1 Scenario A fold + 5 Scenario B folds

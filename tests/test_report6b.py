@@ -443,3 +443,8 @@ def test_render_points_the_reader_the_right_way_to_the_gate_table():
     verdict_part, sec1 = doc[:gate_at], doc[doc.index("## 1."):doc.index("## 2.")]
     assert "gate table below" in verdict_part and "gate table above" not in verdict_part
     assert "gate table above" in sec1 and "gate table below" not in sec1
+
+
+def test_the_pre_registration_the_report_cites_exists():
+    """The generated report names the spec it was pre-registered in; that path must resolve."""
+    assert (Path(rb.__file__).parent / rb.SPEC).is_file()

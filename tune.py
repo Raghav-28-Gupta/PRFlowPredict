@@ -1,6 +1,8 @@
 """Optuna on Scenario A's TRAINING rows only, time-ordered CV, FULL feature set.
 
-The held-out test period and Scenario B's held-out repos never influence tuning. The
+Scenario A's held-out test period never influences tuning. Scenario B's held-out repos
+do: their pre-2026 rows are part of Scenario A's training rows, since every repo is held
+out in some fold (an unmeasured, likely small effect -- see docs/REPORT.md). The
 best params are frozen in data/models/params.json and reused for every scenario, fold
 and ablation -- the fair comparison, stated in the report."""
 from __future__ import annotations

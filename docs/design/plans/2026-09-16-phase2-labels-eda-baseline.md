@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13, pandas 2.3, numpy, pyarrow, scikit-learn (GroupKFold, average_precision_score), lifelines (Kaplan–Meier), matplotlib, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-09-16-phase2-labels-eda-baseline-design.md`
+**Spec:** `docs/design/specs/2026-09-16-phase2-labels-eda-baseline-design.md`
 
 ## Global Constraints
 

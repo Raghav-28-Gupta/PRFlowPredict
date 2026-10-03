@@ -153,7 +153,7 @@ features, might the model use eight repo-level attributes that are constant with
 *recognise* repos and replay their base rates? That would work on repos seen in training and
 mean nothing on unseen ones. The hypothesis is post-hoc: it came from an exploratory look at
 feature importance. It was then tested under a decision rule
-[committed before any code](superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md),
+[committed before any code](design/specs/2026-09-24-phase6b-fingerprinting-design.md),
 with two tests that both had to confirm it for "supported":
 
 - **A SHAP transfer test.** For each repo, compare the attribution those eight features give it

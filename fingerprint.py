@@ -5,7 +5,7 @@ model uses repo-level features, which are constant within a repo, to IDENTIFY re
 memorise their base rates. That is label replay by proxy, and it cannot transfer to a repo
 the model has never seen.
 
-Pre-registered in docs/superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md,
+Pre-registered in docs/design/specs/2026-09-24-phase6b-fingerprinting-design.md,
 committed before any of this ran. Every function here is pure; report6b.py does the I/O."""
 from __future__ import annotations
 
