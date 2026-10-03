@@ -1,6 +1,7 @@
 """Every result the write-up cites, checked against its committed artifact and its document.
 
 See writeup_claims.py for the registry, and the Phase 8 spec (section 7) for the rules."""
+import ast
 import re
 import subprocess
 
@@ -41,10 +42,25 @@ def test_claim_names_are_unique():
     assert len(names) == len(set(names))
 
 
+def _tracked_files(root) -> set[str] | None:
+    """git's tracked files under root, or None outside a git checkout (e.g. a GitHub
+    'Download ZIP' copy) or without git, where the committed-source check cannot run."""
+    try:
+        out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True)
+    except FileNotFoundError:
+        return None
+    return set(out.stdout.splitlines()) if out.returncode == 0 else None
+
+
+def test_tracked_files_is_none_outside_a_git_checkout(tmp_path):
+    assert _tracked_files(tmp_path) is None
+
+
 def test_every_claim_source_is_committed():
     """A reader who clones the repo must be able to check every number (spec section 7.3)."""
-    out = subprocess.run(["git", "ls-files"], cwd=wc.ROOT, capture_output=True, text=True, check=True)
-    tracked = set(out.stdout.splitlines())
+    tracked = _tracked_files(wc.ROOT)
+    if tracked is None:
+        pytest.skip("not a git checkout (e.g. a ZIP download), so committed files cannot be listed")
     untracked = sorted({s for c in wc.CLAIMS for s in c.sources} - tracked)
     assert not untracked, f"claims read files a clone would not have: {untracked}"
 
@@ -81,6 +97,30 @@ def test_required_honesty_phrase_present(doc, phrase):
 def test_forbidden_phrasing_absent(doc, pattern):
     hit = re.search(pattern, _doc(doc), flags=re.IGNORECASE)
     assert hit is None, f"{doc} says {hit.group(0)!r}"
+
+
+@pytest.mark.parametrize("pattern,reason", wc.RETRACTED, ids=lambda v: str(v)[:30])
+@pytest.mark.parametrize("doc", DOCS)
+def test_retracted_phrasing_absent(doc, pattern, reason):
+    hit = re.search(pattern, _doc(doc), flags=re.IGNORECASE)
+    assert hit is None, f"{doc} says {hit.group(0)!r}, but {reason}"
+
+
+@pytest.mark.parametrize("pattern", wc.BLUEPRINT_6B_UPGRADES)
+def test_blueprint_never_upgrades_6b(pattern):
+    hit = re.search(pattern, _doc(wc.BLUEPRINT), flags=re.IGNORECASE)
+    assert hit is None, f"{wc.BLUEPRINT} says {hit.group(0)!r}"
+
+
+def test_writeup_modules_parse_on_python_311():
+    """Python 3.11 and earlier reject a backslash inside an f-string's braces (PEP 701 lifted
+    that in 3.12), and ast.parse(feature_version=...) does not detect it, so look directly."""
+    for mod in ("writeup_claims.py", "writeup_figures.py"):
+        src = (wc.ROOT / mod).read_text(encoding="utf-8")
+        bad = [seg for node in ast.walk(ast.parse(src)) if isinstance(node, ast.JoinedStr)
+               for part in node.values if isinstance(part, ast.FormattedValue)
+               for seg in [ast.get_source_segment(src, part.value) or ""] if "\\" in seg]
+        assert not bad, f"{mod}: backslash inside f-string braces: {bad}"
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,8 @@
 # PRFlowPredict: predicting which pull requests will stall
 
-Every measured result in this report is recomputed from a committed artifact by
-`tests/test_writeup_claims.py`, which fails if a number here is wrong or stale.
+Every measured result in this report is checked by `tests/test_writeup_claims.py` against the
+committed data file or phase report it comes from, and the test fails if a number here is
+wrong or stale.
 
 ## 1. The problem, and why a rule is not enough
 
@@ -25,7 +26,7 @@ baseline the model must beat is fixed in advance.
 
 **Cohort.** Public repos stratified by language (Python, TypeScript, Go) and star tier
 (200-800, 800-3,000, 3,000-15,000), five per cell, drawn at random with a fixed seed from a
-persisted candidate pool. Pre-registered structural checks, which never looked at the label,
+persisted candidate pool. Pre-registered structural checks, which never used the label,
 kept 39 of the 45 repos collected: five were dominated by bot-authored PRs and one did not
 match its language stratum. The modelling rows are human-authored PRs opened from 1 January
 2024 to 30 June 2026: 38,462 modelling rows.
@@ -42,7 +43,7 @@ match its language stratum. The modelling rows are human-authored PRs opened fro
 **The label.** A PR is *slow* if no one other than its author, and no bot, reviews or
 comments on it within 168 hours of creation. The primary definition (D5) also ignores
 commenters whose relationship to the repo is `NONE`: a pilot on `anthropics/skills` showed
-spam accounts commenting on outsiders' PRs, which would otherwise count as a review. The
+an apparent spam account commenting on outsiders' PRs, which would otherwise count as a review. The
 label is 46.4% slow under D5 and 44.0% under D3, the variant that keeps those commenters; the
 full five-definition table is in [the Phase 2 report](phase2_eda.md). More detail on the
 collection design is in [how the data was collected](data_collection.md).
@@ -52,8 +53,8 @@ collection design is in [how the data was collected](data_collection.md).
 Leakage is the main way a project like this produces a result that looks good and means
 nothing, so it is prevented structurally rather than checked for afterwards.
 
-- **Chronological replay.** Features are computed by replaying each repo's events in time
-  order. A PR's features are built from state that existed strictly before it was opened.
+- **Chronological replay.** History features are computed by replaying each repo's events in
+  time order, from state that existed strictly before the PR was opened.
 - **"Resolvable by t" for label-derived features.** A repo's trailing slow rate at time *t*
   may only use PRs whose own label was already knowable at *t*: created at least 168 hours
   earlier, or already reviewed. Using every earlier PR, the obvious rule, silently looks up to
@@ -82,7 +83,10 @@ nothing, so it is prevented structurally rather than checked for afterwards.
   sample size for a claim about repos is the number of repos, not the number of PRs.
 - **Model.** LightGBM, trained deterministically (fixed seeds, single thread). Hyperparameters
   were tuned with Optuna on Scenario A's training rows only, in time-ordered folds, reaching a
-  cross-validated AUC-PR 0.907. Neither test set influenced tuning.
+  cross-validated AUC-PR 0.907. Scenario A's test period never influenced tuning. Scenario B's
+  held-out repos did: their pre-2026 rows are part of Scenario A's training rows, since every
+  repo is held out in some fold. The same hyperparameters were then frozen for every run, so
+  the effect is likely small, but it was not measured.
 
 ## 5. Results
 
@@ -92,6 +96,9 @@ nothing, so it is prevented structurally rather than checked for afterwards.
 | P@10, trailing-rate baseline | 0.585 | 0.632 |
 | AUC-PR, model | 0.906 | 0.859 |
 | AUC-PR, trailing-rate baseline | 0.887 | 0.821 |
+
+Scenario B's numbers are means over its five folds; its P@10 interval is the mean of the five
+folds' bootstrap interval bounds, not one pooled bootstrap.
 
 **Within a project, the model clearly works.** On Scenario A its precision@10 is
 0.769 [0.669, 0.856], +0.185 over the baseline, and the baseline scores 0.585, outside the
@@ -103,7 +110,7 @@ Scenario A draws them from a median of 64 test PRs per repo, against 433 in Scen
 Picking 10 slow PRs out of a larger pool is easier. AUC-PR does not depend on pool size, so it
 is the fair comparison across scenarios.
 
-**Across projects, the advantage comes from the repo's own history.** The pre-registered
+**Across projects, the advantage comes from the repo's slow-rate history.** The pre-registered
 ablations remove one group of features at a time (AUC-PR):
 
 | Features | Scenario A | Scenario B |
@@ -116,15 +123,21 @@ ablations remove one group of features at a time (AUC-PR):
 
 `NO_LABEL_REPLAY` removes the four features that replay the repo's own review record, such as
 its trailing slow rate and the author's past slow rate in the repo. Within a project, the model
-barely notices and still beats the baseline: PR-level features carry real signal. Across
+barely notices and still beats the baseline: the remaining features (the PR itself, the
+author's and the repo's other history, the repo's attributes) carry real signal. Across
 projects, the same ablation drops it to 0.763 vs 0.821, below the baseline, in 4 of 5 folds.
-With the history features the cold-start model beats the baseline (0.859 vs 0.821); without
-them it does not. In this cohort, PR-level signal learned in some projects does not carry to
-others.
+With the slow-rate features the cold-start model beats the baseline (0.859 vs 0.821); without
+them it does not. In this cohort, what the model learns from the remaining features in some
+projects does not carry to others.
+
+On per-repo P@10 the same ablation still edges the baseline on unseen repos (0.699 vs 0.632),
+but its fold-averaged interval [0.469, 0.906] cannot separate the two. AUC-PR is global across
+all test rows, so it mostly rewards telling slow repos from fast ones (see
+[the Phase 4 report](phase4_results.md)), and that is what the ablation loses.
 
 ## 6. Why doesn't it transfer?
 
-![AUC-PR on seen and unseen repos, with and without the repo's own history](../figures/headline_transfer.png)
+![AUC-PR on seen and unseen repos, with and without the repo's slow-rate history](../figures/headline_transfer.png)
 
 **Phase 6: it is not that the model relies on different features.** Exact TreeSHAP
 attributions for both full models show the four history features carrying 60.9% in Scenario A
@@ -155,8 +168,8 @@ with two tests that both had to confirm it for "supported":
 The verdict is `PARTIAL_SHAP_ONLY`. The attribution pattern is there: the eight features carry
 30.3% of mean |SHAP| in Scenario A and 40.7% in Scenario B, and their contribution tracks a
 repo's real slow rate more closely when the repo was seen in training. But removing them does
-not measurably help on unseen repos, so the pattern is not shown to be what costs cold-start
-accuracy.
+not measurably hurt seen repos more than unseen ones, so the pattern is not shown to be what
+costs cold-start accuracy.
 
 ![Repo-level contribution against actual slow rate, seen and held-out repos](../figures/fingerprint_scatter.png)
 
@@ -166,8 +179,8 @@ Two caveats keep this from being read too strongly:
   makes it only marginally distinguishable from it. That interval is descriptive, outside the
   pre-registered verdict.
 - **The intervention's per-fold effects are unstable.** Per-fold changes on unseen repos range
-  from +0.245 to -0.131, and I's interval contains zero: this data cannot distinguish a small
-  intervention effect from none.
+  from +0.245 to -0.131, and I's 95% interval [-0.043, +0.106] contains zero: this data
+  cannot distinguish a small intervention effect from none.
 
 See [the Phase 6b report](phase6b_fingerprinting.md).
 
@@ -199,8 +212,8 @@ actual slow rate) and the repeat-contributor gap, within the same repos.
   anywhere, and PR-level features alone fall far below the baseline in both scenarios.
 - **Lessons from the process.**
   - A test once overwrote a model file in a gitignored directory, where version control could
-    not see it. It was restored and verified exactly, and those directories are now fenced off
-    from tests. Verify gitignored artifacts by hash, never by version-control status.
+    not see it. It was restored and verified exactly, and the test file that reached it now
+    redirects those directories to a temporary one. Verify gitignored artifacts by hash, never by version-control status.
   - Several tests were found whose assertions held whether or not the behaviour they named
     worked. Tests are now checked by deliberately breaking the code they cover and confirming
     they fail.
@@ -216,9 +229,11 @@ actual slow rate) and the repeat-contributor gap, within the same repos.
   landed.
 - **Mutation-checked tests.** Tests are verified by breaking the code they cover and confirming
   they fail.
-- **Independent review** of every change before it was merged.
-- **Reproducible from committed artifacts.** Every figure and every number in this report can
-  be regenerated from files in the repository.
+- **Review before merge.** From Phase 2 on, each phase was built on its own branch and
+  reviewed against its written spec before it was merged.
+- **Checkable from committed artifacts.** Both headline figures are regenerated from committed
+  data, and every measured result in this report is recomputed from committed data or read
+  from a committed phase report, then checked by the test suite.
 
 ## 10. Reproducing it
 
@@ -239,6 +254,7 @@ python collect_cohort.py         # ~4-5 h, resumable
 python parse.py
 python cohort_qc.py
 python eda_report.py
+python baseline.py
 python features.py
 python features.py --audit
 python tune.py
@@ -249,8 +265,10 @@ python report6b.py
 ```
 
 Re-running some steps overwrites committed results:
-- `experiment.py` and `report6b.py` append their runs to `data/experiments.csv` again, creating
-  duplicate rows.
+- `baseline.py`, `experiment.py` and `report6b.py` append their runs to `data/experiments.csv`
+  again, creating duplicate rows.
+- `features.py --audit` rewrites `data/phase3_gate.json` with its automated checks only,
+  dropping the recorded live-GitHub check (check 5).
 - `report6.py` regenerates `docs/phase6_interpretation.md`, which replaces its hand-written
   error analysis.
 

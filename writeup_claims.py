@@ -28,6 +28,7 @@ ROOT = Path(__file__).parent
 README = "README.md"
 REPORT = "docs/REPORT.md"
 BOTH = (README, REPORT)
+BLUEPRINT = "actionable_ml_project_blueprint.md"
 
 P4_RUNS = "data/phase4_runs.json"
 P4_DOC = "docs/phase4_results.md"
@@ -44,6 +45,11 @@ P6B_TRANSFER = "data/phase6b_transfer.csv"
 P6B_INTERVENTION = "data/phase6b_intervention.csv"
 P6B_RELIANCE = "data/phase6b_reliance.csv"
 EXPERIMENTS = "data/experiments.csv"
+
+# Table rows parsed from generated documents. Kept out of f-strings: Python 3.11 and earlier
+# cannot parse a backslash inside an f-string's braces.
+D3_ROW = r"^\| D3 \| ([\d.]+) \|"
+POOL_ROW = r"^\| {} \| \d+ \| \d+ \| ([\d.]+) \|"
 
 
 @dataclass(frozen=True)
@@ -240,7 +246,7 @@ CLAIMS: tuple[Claim, ...] = (
           "39 of the 45", (REPORT,), (KEPT,)),
     Claim("d5_rate", lambda: f"{_gate(P2_GATE, 'D5 global is_slow'):.1%} slow under D5",
           "46.4% slow under D5", (REPORT,), (P2_GATE,)),
-    Claim("d3_rate", lambda: f"{_parse(P2_DOC, r'^\| D3 \| ([\d.]+) \|')[0]:.1%} under D3",
+    Claim("d3_rate", lambda: f"{_parse(P2_DOC, D3_ROW)[0]:.1%} under D3",
           "44.0% under D3", (REPORT,), (P2_DOC,)),
     Claim("modelling_rows", lambda: f"{_gate(P3_GATE, 'row count')[0]:,} modelling rows",
           "38,462 modelling rows", (REPORT,), (P3_GATE,)),
@@ -268,13 +274,17 @@ CLAIMS: tuple[Claim, ...] = (
     Claim("a_advantage", lambda: f"{_s3(_p4('A', 'FULL', 'precision_at_10') - _p4('A', 'FULL', 'baseline_p10'))} over the baseline",
           "+0.185 over the baseline", (REPORT,), (P4_RUNS,)),
     Claim("a_base_rate", lambda: f"base rate of {_f3(_p4('A', 'FULL', 'base_rate_p10'))}",
-          "base rate of 0.641", (REPORT,), (P4_RUNS,)),
-    Claim("pool_a", lambda: f"a median of {_parse(P4_DOC, r'^\| A \| \d+ \| \d+ \| ([\d.]+) \|')[0]:.0f} test PRs",
+          "base rate of 0.641", BOTH, (P4_RUNS,)),
+    Claim("pool_a", lambda: f"a median of {_parse(P4_DOC, POOL_ROW.format('A'))[0]:.0f} test PRs",
           "a median of 64 test PRs", (REPORT,), (P4_DOC,)),
-    Claim("pool_b", lambda: f"against {_parse(P4_DOC, r'^\| B \| \d+ \| \d+ \| ([\d.]+) \|')[0]:.0f} in Scenario B",
+    Claim("pool_b", lambda: f"against {_parse(P4_DOC, POOL_ROW.format('B'))[0]:.0f} in Scenario B",
           "against 433 in Scenario B", (REPORT,), (P4_DOC,)),
     Claim("nlr_folds_below", lambda: f"{_folds_below_baseline()} of 5 folds",
           "4 of 5 folds", (REPORT,), (P4_RUNS,)),
+    Claim("b_nlr_p10", lambda: f"{_f3(_p4('B', 'NO_LABEL_REPLAY', 'precision_at_10'))} vs {_f3(_p4('B', 'NO_LABEL_REPLAY', 'baseline_p10'))}",
+          "0.699 vs 0.632", (REPORT,), (P4_RUNS,)),
+    Claim("b_nlr_p10_ci", lambda: f"interval {_ci(_p4('B', 'NO_LABEL_REPLAY', 'p10_ci_lo'), _p4('B', 'NO_LABEL_REPLAY', 'p10_ci_hi'))}",
+          "interval [0.469, 0.906]", (REPORT,), (P4_RUNS,)),
     Claim("nlr_b_fold_range", lambda: (lambda lo, hi: f"from {_f3(lo)} to {_f3(hi)}")(*_nlr_b_fold_range()),
           "from 0.507 to 0.965", (REPORT,), (P4_RUNS,)),
 
@@ -293,6 +303,8 @@ CLAIMS: tuple[Claim, ...] = (
           "T = +0.351, 95% CI [+0.092, +0.616]", (REPORT,), (P6B_DOC, P6B_TRANSFER)),
     Claim("i_6b", lambda: (lambda p, lo, hi: f"I = {_s3(p)}, 95% CI {_ci(lo, hi, _s3)}")(*_i_interval()),
           "I = +0.035, 95% CI [-0.043, +0.106]", (REPORT,), (P6B_DOC, P6B_INTERVENTION)),
+    Claim("i_6b_caveat", lambda: (lambda p, lo, hi: f"I's 95% interval {_ci(lo, hi, _s3)}")(*_i_interval()),
+          "I's 95% interval [-0.043, +0.106]", (REPORT,), (P6B_DOC, P6B_INTERVENTION)),
     Claim("delta_a", lambda: f"Δ_A = {_s3(_delta('A'))}", "Δ_A = -0.040", (REPORT,), (P6B_INTERVENTION,)),
     Claim("delta_b", lambda: f"Δ_B = {_s3(_delta('B'))}", "Δ_B = -0.004", (REPORT,), (P6B_INTERVENTION,)),
     Claim("fold_delta_range", lambda: (lambda iv: f"from {_s3(iv.delta.max())} to {_s3(iv.delta.min())}")(_intervention()[_intervention().scenario == "B"]),
@@ -327,9 +339,44 @@ REQUIRED_PHRASES: tuple[tuple[str, str], ...] = (
     (REPORT, "cannot distinguish a small intervention effect from none"),
     (REPORT, "marginal null"),
     (REPORT, "small sample"),
+    (REPORT, "mean of the five folds' bootstrap interval bounds"),
+    (README, "Python 3.13"),
+    (README, "python baseline.py"),
+    (REPORT, "python baseline.py"),
+    (REPORT, "rewrites `data/phase3_gate.json`"),
 )
 FORBIDDEN_PATTERNS: tuple[str, ...] = (
     r"fingerprinting (is|was) (supported|confirmed)",
     r"confirm(s|ed)? (repo )?fingerprinting",
     r"\bprov(e|es|ed|en)\b",
+    r"hypothesis (is|was) (supported|confirmed)",
+)
+
+# Phrasings an earlier draft used that the committed code or data contradict, with the reason.
+# Each must stay out of both documents, so a later edit cannot quietly reintroduce one.
+RETRACTED: tuple[tuple[str, str], ...] = (
+    (r"neither test set influenced tuning",
+     "tune.py tunes on Scenario A's training rows, which include every Scenario B held-out repo's pre-2026 rows"),
+    (r"every feature is computed by replaying", "eight repo-level attributes are 2026 snapshots, not replayed"),
+    (r"repo's own history",
+     "NO_LABEL_REPLAY removes only the four slow-rate features; the rest of the repo's history stays in"),
+    (r"PR-level (signal|features carry)",
+     "what NO_LABEL_REPLAY keeps is not PR-level only; PR_ONLY is a separate, much weaker set"),
+    (r"partly explained", "Phase 6b did not show that the attribution pattern causes the gap"),
+    (r"does not measurably help on unseen repos",
+     "the pre-registered intervention quantity is relative, I = Delta_B - Delta_A"),
+    (r"independent review\W+of every change",
+     "Phase 1 was committed directly to main, before the branch-and-review workflow"),
+    (r"every figure and every number",
+     "some cited values (6b's I interval, fairness paired differences, pool medians) need gitignored predictions to regenerate"),
+    (r"never looked at the label", "cohort_qc.py computes each repo's label rates; it never filters on them"),
+    (r"spam accounts", "the anthropics/skills pilot identified one apparent spam account"),
+    (r"fenced off from tests", "only tests/test_report6b.py redirects the gitignored model directories"),
+)
+
+# The blueprint's status notes must not upgrade Phase 6b either (spec section 9.7).
+BLUEPRINT_6B_UPGRADES: tuple[str, ...] = (
+    r"explained part of it",
+    r"partly explained",
+    r"fingerprinting (is|was) (supported|confirmed)",
 )

@@ -8,39 +8,41 @@ stalling.
 
 - **Within a project, it works.** Predicting PRs opened after a time cutoff, in repos it was
   trained on, the model's precision on each repo's 10 highest-risk PRs is
-  0.769 [0.669, 0.856] (95% interval, resampling repos). For comparison, the trailing-rate
-  baseline scores 0.585; it ranks PRs by the repo's own recent slow rate, and falls well
-  below the model's interval.
-- **On repos it has never seen, it only works through the repo's own history.** It beats the
-  baseline there (AUC-PR 0.859 vs 0.821) while it can use features that replay the repo's own
-  recent review record. Remove those four features and it falls below the baseline:
-  0.763 vs 0.821. In this cohort, PR-level signal learned in some projects does not carry to
-  others.
-- **Why is only partly explained.** The models lean on the same features whether or not a
-  repo was seen in training. A pre-registered test of one mechanism, the model recognising
-  repos by their fixed attributes, came back partly supported (`PARTIAL_SHAP_ONLY`): the
-  attribution pattern is there, but removing those attributes does not measurably help on
-  unseen repos.
+  0.769 [0.669, 0.856] (95% interval, resampling repos), against a base rate of 0.641 for a
+  random pick. The trailing-rate baseline scores 0.585: it ranks PRs by the repo's own recent
+  slow rate, which barely varies within a repo, so there it ranks close to randomly.
+- **On repos it has never seen, it only works through the repo's slow-rate history.** It beats
+  the baseline there (AUC-PR 0.859 vs 0.821) while it can use four features that replay the
+  repo's own recent review record, such as its trailing slow rate. Remove those four and its
+  AUC-PR falls below the baseline: 0.763 vs 0.821. In this cohort, what the model learns from
+  the remaining features in some projects does not carry to others.
+- **Why remains open.** The models lean on the same features whether or not a repo was seen
+  in training. A pre-registered test of one mechanism, the model recognising repos by their
+  fixed attributes, came back partly supported (`PARTIAL_SHAP_ONLY`): the attribution pattern
+  is there, but removing those attributes does not measurably hurt seen repos more than unseen
+  ones, so it is not shown to cause the gap.
 
-![AUC-PR on seen and unseen repos, with and without the repo's own history, against the trailing-rate baseline](figures/headline_transfer.png)
+![AUC-PR on seen and unseen repos, with and without the repo's slow-rate history, against the trailing-rate baseline](figures/headline_transfer.png)
 
 ## Why the numbers can be trusted
 
-- **No leakage by construction.** Every feature is computed by replaying each repo's history
-  in time order, so a PR only ever sees what existed when it was opened. An independent
-  brute-force recomputation of the replayed features matches them exactly.
+- **Leakage prevented by construction.** History features are computed by replaying each
+  repo's events in time order, so a PR only ever sees what existed when it was opened, and an
+  independent brute-force recomputation matches them exactly. The stated exceptions: eight
+  repo-level attributes are 2026 snapshots, and a few at-open PR fields are reconstructed
+  approximations.
 - **Validity gates at every phase.** Each phase pre-registered checks that its results are
   valid (disjoint splits, no label in any feature, reproducible refits) and passed them before
   its results were read. The gates test validity, never success.
 - **Negative results are the headline, not a footnote.** The cold-start failure, a null
   attribution result and a partly supported hypothesis are all reported as found.
-- **Every result here is checked.** `tests/test_writeup_claims.py` recomputes each measured
-  result in this README and in the report from committed artifacts, and fails if one is
-  wrong or stale.
+- **Every result here is checked.** `tests/test_writeup_claims.py` checks each measured result
+  in this README and in the report against the committed data file or phase report it comes
+  from, and fails if one is wrong or stale.
 
 ## Reproduce
 
-From the committed state alone (no GitHub access needed):
+From the committed state alone (Python 3.13; no GitHub access needed):
 
 ```bash
 pip install -r requirements.txt
@@ -57,6 +59,7 @@ python collect_cohort.py         # ~4-5 h, resumable: raw GraphQL responses into
 python parse.py                  # offline: raw responses into data/processed/
 python cohort_qc.py              # structural cohort checks
 python eda_report.py             # labels, EDA and the Phase 2 gate
+python baseline.py               # the trailing-rate baseline, logged to data/experiments.csv
 python features.py               # the leakage-safe feature table
 python features.py --audit       # the Phase 3 gate
 python tune.py                   # hyperparameters, on Scenario A training rows only

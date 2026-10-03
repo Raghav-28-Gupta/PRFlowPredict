@@ -5,7 +5,7 @@
 > Evidence for each is in `docs/phase0_gate_results.md` and `docs/data_dictionary.md`.
 > Original text is preserved in git history.
 >
-> **Status updated 2026-09-30** after Phase 8. Changes are marked `[R3]` inline.
+> **Status updated 2026-10-03** after Phase 8. Changes are marked `[R3]` inline.
 
 ---
 
@@ -91,11 +91,11 @@
 | 6 | `[R3]` **Done 2026-09-23.** SHAP attribution on both FULL models: label-replay share 60.9% (A) vs 63.1% (B), so differential feature reliance does not explain the cold-start gap. Manual error analysis of the worst 50 predictions; newcomer-fairness check. `docs/phase6_interpretation.md` | Must-have — done |
 | 6b | `[R3]` **Done 2026-09-27.** Pre-registered repo-fingerprinting test, verdict `PARTIAL_SHAP_ONLY`: the SHAP transfer test's outcome is `confirms`, the intervention's is `inconclusive`. `docs/phase6b_fingerprinting.md` | Added — done |
 | 7 (week 7) | `[R3]` **Not built (open).** Streamlit demo: pick a repo, see open PRs ranked by risk | Nice-to-have but high payoff for the demo |
-| 8 | `[R3]` **Done 2026-09-30.** Write-up: `README.md` and `docs/REPORT.md`, every cited result checked by `tests/test_writeup_claims.py` | Must-have — done |
+| 8 | `[R3]` **Done 2026-10-03.** Write-up: `README.md` and `docs/REPORT.md`, every cited result checked by `tests/test_writeup_claims.py` | Must-have — done |
 
 **Checkpoints:** after Phase 0, confirm the labeling logic isn't degenerate before scaling collection. After Phase 3, confirm zero leakage by spot-checking 5 rows manually against raw timestamps. `[R2]` Both done: Phase 3's check was automated (brute-force twin, gate #2) AND performed against live GitHub (gate #5, `data/phase3_gate5_live.json`).
 
-`[R2]` **This is what happened, in the precise form the blueprint anticipated:** Scenario B's FULL model beats the baseline, but strip the label-replay features and it does not (AUC-PR 0.763 vs 0.821, at-or-below in 4/5 folds). The cold-start advantage rests on the repo's own trailing rate, not on transferable PR-level structure. Phase 6's SHAP work should explain why. `[R3]` It explained part of it: see the Phase 6 and 6b rows above. Note also that B's raw P@10 (0.796) EXCEEDS A's (0.769) only because B's per-repo candidate pool is ~7x larger (median 433 vs 64 test PRs); that is a pool-size artifact, not cold-start superiority.
+`[R2]` **This is what happened, in the precise form the blueprint anticipated:** Scenario B's FULL model beats the baseline, but strip the label-replay features and it does not (AUC-PR 0.763 vs 0.821, at-or-below in 4/5 folds). The cold-start advantage rests on the repo's own trailing rate, not on transferable PR-level structure. Phase 6's SHAP work should explain why. `[R3]` Phase 6 ruled out differential feature reliance; Phase 6b found the fingerprinting attribution pattern but not that it causes the gap (`PARTIAL_SHAP_ONLY`). Note also that B's raw P@10 (0.796) EXCEEDS A's (0.769) only because B's per-repo candidate pool is ~7x larger (median 433 vs 64 test PRs); that is a pool-size artifact, not cold-start superiority.
 
 **Fallback if the primary approach stalls:** if the leave-repos-out split (Scenario B) collapses to near-baseline performance, that is not a dead end — pivot the report's framing to "within-project prediction is viable; cross-project transfer is not, and here's the SHAP evidence for why" (likely: repo culture dominates, and it's not transferable through the features collected). This is a legitimate, gradeable finding, not a failure state.
 

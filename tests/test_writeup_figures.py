@@ -1,6 +1,7 @@
 """The two headline figures show exactly the committed numbers, and render deterministically."""
 import numpy as np
 import pandas as pd
+import pytest
 
 import writeup_figures as wf
 
@@ -32,6 +33,30 @@ def test_the_baseline_is_the_same_whichever_model_supplies_it():
         full = [r["baseline_auc_pr"] for r in _runs(runs, sc, "FULL")]
         nlr = [r["baseline_auc_pr"] for r in _runs(runs, sc, "NO_LABEL_REPLAY")]
         assert full == nlr
+
+
+@pytest.fixture
+def headline(monkeypatch, tmp_path):
+    """Figure 1 as a matplotlib Figure: keep it open long enough to inspect, then close it."""
+    captured = []
+    monkeypatch.setattr(wf.plt, "close", captured.append)
+    wf.headline_transfer(wf.load_runs(), tmp_path / "headline.png")
+    monkeypatch.undo()
+    yield captured[0]
+    wf.plt.close(captured[0])
+
+
+def test_headline_bars_start_at_zero(headline):
+    """Bar length encodes the value, so a bar axis that starts above zero exaggerates the gaps."""
+    assert headline.axes[0].get_ylim()[0] == 0
+
+
+def test_headline_names_what_the_ablation_removes(headline):
+    """NO_LABEL_REPLAY drops only the four slow-rate features, not 'the repo's own history'."""
+    ax = headline.axes[0]
+    texts = [ax.get_title()] + [t.get_text() for t in ax.get_legend().get_texts()]
+    assert any("slow-rate history" in t for t in texts)
+    assert not any("own history" in t for t in texts)
 
 
 def test_scatter_data_is_the_transfer_table():

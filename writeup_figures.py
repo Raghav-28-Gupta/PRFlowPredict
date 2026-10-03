@@ -26,7 +26,7 @@ RUNS = ROOT / "data" / "phase4_runs.json"
 TRANSFER = ROOT / "data" / "phase6b_transfer.csv"
 PNG_META = {"Software": None}          # no version string in the PNG, so output is byte-stable
 SETS = ("FULL", "NO_LABEL_REPLAY")
-LABELS = {"FULL": "model, all features", "NO_LABEL_REPLAY": "model, without the repo's own history",
+LABELS = {"FULL": "model, all features", "NO_LABEL_REPLAY": "model, without the repo's slow-rate history",
           "baseline": "trailing-rate baseline"}
 COLOURS = {"FULL": "#2b6cb0", "NO_LABEL_REPLAY": "#90cdf4", "baseline": "#a0aec0"}
 
@@ -65,16 +65,16 @@ def headline_transfer(runs: list[dict], out: Path) -> dict:
             mean = float(np.mean(vals))
             ax.bar(x, mean, width * 0.92, color=COLOURS[k], label=LABELS[k] if i == 0 else None)
             # value at the bar's base: no fold dot reaches that low, so the label never collides
-            ax.text(x, 0.415, f"{mean:.3f}", ha="center", va="bottom", fontsize=9,
+            ax.text(x, 0.02, f"{mean:.3f}", ha="center", va="bottom", fontsize=9,
                     color="white" if k == "FULL" else "#1a202c")
             if len(vals) > 1:
                 ax.scatter([x] * len(vals), vals, s=14, color="#1a202c", zorder=3,
                            label="one held-out fold" if (i == 1 and j == 0) else None)
     ax.set_xticks([0, 1], ["Scenario A: repos seen in training", "Scenario B: repos never seen"])
     ax.set_ylabel("AUC-PR")
-    ax.set_ylim(0.4, 1.05)
+    ax.set_ylim(0, 1.05)                 # bar length encodes the value, so the axis starts at zero
     ax.set_title("Within a project the model beats the baseline;\n"
-                 "on unseen repos it does so only with the repo's own history", fontsize=11)
+                 "on unseen repos it does so only with the repo's slow-rate history", fontsize=11)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=2, fontsize=8, frameon=False)
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
