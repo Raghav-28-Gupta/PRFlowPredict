@@ -1,140 +1,92 @@
-# PRFlowPredict — Phase 1: dataset collection
+# PRFlowPredict
 
-Predicts, at PR-open time, whether a GitHub pull request will wait more than 168h
-(7 days) for its first non-author, non-bot human review.
+Predicts, at the moment a GitHub pull request is opened, whether it will wait **more than
+7 days** for its first human review, so a maintainer can see which open PRs are at risk of
+stalling.
 
-Full project spec: [actionable_ml_project_blueprint.md](actionable_ml_project_blueprint.md).
-**Read [docs/data_dictionary.md](docs/data_dictionary.md) before building any feature** —
-it records which columns are point-in-time safe and which only look it.
+## The result
 
-This directory currently implements **Phase 1 (collection) with the Phase 0 gate folded
-in**. Labels (Phase 2) and features (Phase 3) are not built yet, deliberately.
+- **Within a project, it works.** Predicting PRs opened after a time cutoff, in repos it was
+  trained on, the model's precision on each repo's 10 highest-risk PRs is
+  0.769 [0.669, 0.856] (95% interval, resampling repos). For comparison, the trailing-rate
+  baseline scores 0.585; it ranks PRs by the repo's own recent slow rate, and falls well
+  below the model's interval.
+- **On repos it has never seen, it only works through the repo's own history.** It beats the
+  baseline there (AUC-PR 0.859 vs 0.821) while it can use features that replay the repo's own
+  recent review record. Remove those four features and it falls below the baseline:
+  0.763 vs 0.821. In this cohort, PR-level signal learned in some projects does not carry to
+  others.
+- **Why is only partly explained.** The models lean on the same features whether or not a
+  repo was seen in training. A pre-registered test of one mechanism, the model recognising
+  repos by their fixed attributes, came back partly supported (`PARTIAL_SHAP_ONLY`): the
+  attribution pattern is there, but removing those attributes does not measurably help on
+  unseen repos.
 
----
+![AUC-PR on seen and unseen repos, with and without the repo's own history, against the trailing-rate baseline](figures/headline_transfer.png)
 
-## The one idea that shapes everything here
+## Why the numbers can be trusted
 
-Phase 1's job is to capture enough raw signal that **Phases 2–8 never need to re-scrape
-GitHub**. Every design choice follows from that:
+- **No leakage by construction.** Every feature is computed by replaying each repo's history
+  in time order, so a PR only ever sees what existed when it was opened. An independent
+  brute-force recomputation of the replayed features matches them exactly.
+- **Validity gates at every phase.** Each phase pre-registered checks that its results are
+  valid (disjoint splits, no label in any feature, reproducible refits) and passed them before
+  its results were read. The gates test validity, never success.
+- **Negative results are the headline, not a footnote.** The cold-start failure, a null
+  attribution result and a partly supported hypothesis are all reported as found.
+- **Every result here is checked.** `tests/test_writeup_claims.py` recomputes each measured
+  result in this README and in the report from committed artifacts, and fails if one is
+  wrong or stale.
 
-- **Two stages.** `collect.py` writes raw response bytes and never interprets them.
-  `parse.py` reads only from disk and never touches the network. A parse bug costs a
-  re-parse; a collection bug would cost a re-scrape.
-- **Two tiers.** The blueprint's date window is a **row filter, not a collection
-  filter**. "Open PR backlog at instant *t*" needs every PR ever opened and still open
-  at *t* — a 2019 PR counts. So Tier 1 sweeps all history cheaply (~1 point per 100
-  PRs) and Tier 2 pays rich cost only inside the window.
-- **The label is not decided yet.** Three review streams are captured separately so
-  Phase 2 can compare competing definitions on real data. See "Why" below.
+## Reproduce
 
----
-
-## Setup
+From the committed state alone (no GitHub access needed):
 
 ```bash
 pip install -r requirements.txt
-gh auth login          # the collector borrows gh's token; needs only public_repo
+python -m pytest tests -q        # includes the check of every number in this README
+python writeup_figures.py        # regenerates both headline figures
 ```
 
-## Running it
+The full pipeline needs a GitHub token and a multi-hour collection, because raw data is not
+committed. In order:
 
 ```bash
-# 1. pick the cohort (structural criteria only, seeded, reproducible)
-python select_repos.py --seed 20260912
-
-# 2. collect one repo: tier 0 = metadata, 1 = all history (thin), 2 = in-window (rich)
-python collect.py --repo anthropics/skills
-
-# 3. raw -> Parquet, with conservation and ordering assertions
-python parse.py --repo anthropics/skills
-
-# 4. the Phase 0 gate
-python gate_report.py --repo anthropics/skills
-
-# hard-stop check: prove an interrupted run resumes without losing rows
-python test_resume.py
+gh auth login                    # the collector borrows gh's token; public_repo scope is enough
+python collect_cohort.py         # ~4-5 h, resumable: raw GraphQL responses into data/raw/
+python parse.py                  # offline: raw responses into data/processed/
+python cohort_qc.py              # structural cohort checks
+python eda_report.py             # labels, EDA and the Phase 2 gate
+python features.py               # the leakage-safe feature table
+python features.py --audit       # the Phase 3 gate
+python tune.py                   # hyperparameters, on Scenario A training rows only
+python experiment.py             # every model run, logged to data/experiments.csv
+python report4.py                # Phase 4 results and gate
+python report6.py                # Phase 6 SHAP attribution
+python report6b.py               # Phase 6b pre-registered fingerprinting test
 ```
 
-Collection is resumable: rerun the same `collect.py` command after any interruption.
-Progress lives in `data/raw/{owner}__{repo}/checkpoint.json`.
+See [the report's reproducing section](docs/REPORT.md#10-reproducing-it) for what re-running
+each step overwrites.
 
-## Layout
+## Read more
 
-```
-data/raw/{owner}__{repo}/     # verbatim GraphQL bytes, gzipped. Never edit.
-    manifest.jsonl            #   one line per page: sha256, cost, cursors, errors
-    checkpoint.json           #   resume state
-data/processed/{owner}__{repo}/*.parquet
-data/cohort/                  # cohort.json + the full candidate pool + raw searches
-```
+- [The full write-up](docs/REPORT.md): data, leakage prevention, evaluation, results, the
+  search for why transfer fails, fairness, limitations (about 15 minutes).
+- Per-phase detail: [collection gate](docs/phase0_gate_results.md) ·
+  [labels and EDA](docs/phase2_eda.md) · [features](docs/feature_dictionary.md) ·
+  [modelling results](docs/phase4_results.md) · [SHAP interpretation](docs/phase6_interpretation.md) ·
+  [the fingerprinting test](docs/phase6b_fingerprinting.md)
+- [The original project plan](actionable_ml_project_blueprint.md) and
+  [how the data was collected](docs/data_collection.md).
 
-`data/raw` is the expensive artifact. `data/processed` is disposable — regenerate it
-with `parse.py` any time.
+## Repo map
 
----
-
-## Measured facts (not estimates)
-
-| | |
+| Stage | Modules |
 |---|---|
-| Tier 1 cost | 1 point / 100 PRs |
-| Tier 2 cost | 400 points / 1,000 PRs → ~12,500 PRs/hour |
-| Raw size | ~3.1 KB/PR uncompressed → ~0.16 GB for 50k PRs |
-| Full 45-repo run | ~5 hours wall clock |
-
-Rate limit (5,000 pts/hr) is **not** the binding constraint. Wall clock across multiple
-sessions is — which is why resume correctness is a hard-stop gate item, not a nicety.
-
----
-
-## Why the label is deferred to Phase 2
-
-The blueprint defines the target as "first non-author, non-bot review **or comment**."
-In `anthropics/skills`, PRs from `authorAssociation: NONE` receive zero reviews but do
-receive comments from `98zc5g5jyw-arch`, an apparent spam account. That rule would mark
-those PRs *reviewed* and corrupt the target on exactly the population the project is
-about.
-
-So Phase 1 captures `reviews`, `thread_comments`, and `issue_comments` as three
-separate timestamped streams, each with `author_association`, `__typename`,
-`is_minimized` / `minimized_reason`, `body_text`, and every available timestamp.
-`gate_report.py` then computes `is_slow` under five competing definitions and reports
-the spread. If it exceeds 10 points, the label is definition-dominated and Phase 2 owes
-an explicit decision plus a sensitivity table in the write-up.
-
-Related: inline review comments can exist with **no parent review** (verified: a PR with
-`reviews.totalCount == 0` and 10 real `reviewThreads`), so `reviews` alone undercounts.
-
----
-
-## Traps encoded in the code — read before editing `queries.py`
-
-1. **Never add `orderBy` to the `comments` connection.** It accepts one
-   (`IssueCommentOrder`, `UPDATED_AT` only) while `reviews` and `reviewThreads` do not.
-   `UPDATED_AT` reorders on edit and would silently destroy "first comment" semantics.
-   It looks like a harmless addition.
-2. **`timelineItems.totalCount` ignores the `itemTypes` filter.** Any "totalCount > N
-   implies truncated" guard on it is wrong in both directions.
-3. **Use `authored_date`, not `committed_date`,** to reconstruct the at-open diff.
-   Rebase and squash rewrite `committed_date`, which makes most multi-commit PRs
-   reconstruct to 0 additions.
-4. **`PULL_REQUEST_COMMIT` is excluded from `timelineItems`** — it swamps the `first:N`
-   budget. Commits come from the separate `commits` connection.
-5. **The search query is deliberately thin.** A richer one fails partway through a page
-   with `RESOURCE_LIMITS_EXCEEDED`, and the surviving nodes are always the
-   highest-sorted ones — silently biasing the candidate pool.
-6. **Editing any query string is a re-collection event.** Bump `QUERY_VERSION`;
-   `parse.py` fails loudly on mixed versions rather than merging incompatible shapes.
-
-## Assertions that run forever, not once
-
-GitHub does not document the ordering of the `reviews` / `reviewThreads` / `comments`
-connections, yet the entire "`first:N` captures the earliest N" argument depends on
-them being ascending. `parse.py` therefore re-checks monotonicity on **every** run. If
-GitHub ever changes it, the parse fails loudly instead of producing quietly wrong
-labels.
-
-Likewise every page is verified against the sha256 recorded in the manifest, and
-`collect.py` **never advances its cursor past a page carrying GraphQL errors** —
-GraphQL returns HTTP 200 for partial failures, so a status-code-only check would
-happily persist nulls and mark a repo complete.
+| Collection | `select_repos.py` · `gate_report.py` · `collect.py` · `collect_cohort.py` · `ghclient.py` · `queries.py` · `parse.py` · `test_resume.py` |
+| Labels and cohort | `load.py` · `labels.py` · `cohort_qc.py` · `eda_report.py` |
+| Features | `replay.py` · `features.py` · `featuresets.py` |
+| Modelling | `splits.py` · `model.py` · `baseline.py` · `metrics.py` · `tune.py` · `experiment.py` · `tracking.py` · `report4.py` |
+| Interpretation | `attribution.py` · `errors.py` · `fairness.py` · `report6.py` · `fingerprint.py` · `report6b.py` |
+| Write-up | `writeup_figures.py` · `writeup_claims.py` |
