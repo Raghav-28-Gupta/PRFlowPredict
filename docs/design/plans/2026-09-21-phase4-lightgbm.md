@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13, pandas, numpy, lightgbm 4.7.0 (native API), optuna 5.0.0, scikit-learn (`TimeSeriesSplit`, `precision_recall_curve`), matplotlib, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-09-21-phase4-lightgbm-design.md`
+**Spec:** `docs/design/specs/2026-09-21-phase4-lightgbm-design.md`
 
 **Deviation from spec, recorded here:** §6 names `LGBMClassifier`; this plan uses LightGBM's native `lgb.train`/`lgb.Booster` — same algorithm, but native save/load and unambiguous parameter names. The spec's tuned-parameter names are kept as the public vocabulary (`n_estimators`, `min_child_samples`) and translated inside `model.fit` (`n_estimators` → `num_boost_round`, `min_child_samples` → `min_data_in_leaf`).
 

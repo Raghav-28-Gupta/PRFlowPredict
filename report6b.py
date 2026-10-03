@@ -3,7 +3,7 @@
 Tests whether the NO_LABEL_REPLAY model's cold-start failure is repo fingerprinting -- the
 model identifying repos by their static attributes and replaying their base rates.
 
-Pre-registered in docs/superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md,
+Pre-registered in docs/design/specs/2026-09-24-phase6b-fingerprinting-design.md,
 committed before any of this ran. The document this writes is FULLY GENERATED: there is no
 hand-written section, because Phase 6's hand-written section 4 showed what one costs inside
 a generated document -- a re-run silently destroys it.
@@ -38,7 +38,7 @@ DOC = ROOT / "docs" / "phase6b_fingerprinting.md"
 DATA = ROOT / "data"
 RUNS_JSON = DATA / "phase6b_runs.json"
 GATE_JSON = DATA / "phase6b_gate.json"
-SPEC = "docs/superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md"
+SPEC = "docs/design/specs/2026-09-24-phase6b-fingerprinting-design.md"
 
 TOL = 1e-6
 EXPECTED_BOOSTERS = 6          # 1 Scenario A fold + 5 Scenario B folds

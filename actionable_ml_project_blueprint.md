@@ -90,7 +90,7 @@
 | 5 (week 5) | `[R3]` **Not built.** Survival model, C-index, calibration check. So §4's Scenario B bar (C-index > 0.65) was never measured. | Nice-to-have (depth section) — cut |
 | 6 | `[R3]` **Done 2026-09-23.** SHAP attribution on both FULL models: label-replay share 60.9% (A) vs 63.1% (B), so differential feature reliance does not explain the cold-start gap. Manual error analysis of the worst 50 predictions; newcomer-fairness check. `docs/phase6_interpretation.md` | Must-have — done |
 | 6b | `[R3]` **Done 2026-09-27.** Pre-registered repo-fingerprinting test, verdict `PARTIAL_SHAP_ONLY`: the SHAP transfer test's outcome is `confirms`, the intervention's is `inconclusive`. `docs/phase6b_fingerprinting.md` | Added — done |
-| 7 (week 7) | `[R3]` **Not built (open).** Streamlit demo: pick a repo, see open PRs ranked by risk | Nice-to-have but high payoff for the demo |
+| 7 (week 7) | `[R3]` **Done 2026-10-03.** Streamlit demo: pick a repo and a day in the 2026 test period, see the PRs awaiting a first review ranked by risk, under the within-project or the cold-start model. `demo/` | Nice-to-have — done |
 | 8 | `[R3]` **Done 2026-10-03.** Write-up: `README.md` and `docs/REPORT.md`, every cited result checked by `tests/test_writeup_claims.py` | Must-have — done |
 
 **Checkpoints:** after Phase 0, confirm the labeling logic isn't degenerate before scaling collection. After Phase 3, confirm zero leakage by spot-checking 5 rows manually against raw timestamps. `[R2]` Both done: Phase 3's check was automated (brute-force twin, gate #2) AND performed against live GitHub (gate #5, `data/phase3_gate5_live.json`).

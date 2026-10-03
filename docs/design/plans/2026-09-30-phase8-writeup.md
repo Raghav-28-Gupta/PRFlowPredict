@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13, pandas, numpy, scipy (`spearmanr`), matplotlib (Agg), pytest.
 
-**Spec:** `docs/superpowers/specs/2026-09-30-phase8-writeup-design.md` (commit `5b4db6c`).
+**Spec:** `docs/design/specs/2026-09-30-phase8-writeup-design.md` (commit `5b4db6c`).
 
 **This plan was dry-run before it was committed.** A replica of the repo was built from `git archive HEAD`. Every file, script and document was then **extracted from this plan file itself**, every step was run as written, and the results were:
 - **All 42 claims render exactly** from the committed artifacts, and both documents contain every claim string.

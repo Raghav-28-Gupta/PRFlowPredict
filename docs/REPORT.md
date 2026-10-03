@@ -153,7 +153,7 @@ features, might the model use eight repo-level attributes that are constant with
 *recognise* repos and replay their base rates? That would work on repos seen in training and
 mean nothing on unseen ones. The hypothesis is post-hoc: it came from an exploratory look at
 feature importance. It was then tested under a decision rule
-[committed before any code](superpowers/specs/2026-09-24-phase6b-fingerprinting-design.md),
+[committed before any code](design/specs/2026-09-24-phase6b-fingerprinting-design.md),
 with two tests that both had to confirm it for "supported":
 
 - **A SHAP transfer test.** For each repo, compare the attribution those eight features give it
@@ -243,6 +243,7 @@ From the committed state, with no GitHub access:
 pip install -r requirements.txt
 python -m pytest tests -q        # includes the check of every number in this report
 python writeup_figures.py        # regenerates both headline figures
+streamlit run demo/app.py        # the demo, from its committed extract
 ```
 
 The full pipeline needs a GitHub token and a multi-hour collection, because raw data is not
@@ -262,6 +263,7 @@ python experiment.py
 python report4.py
 python report6.py
 python report6b.py
+python build_demo_data.py
 ```
 
 Re-running some steps overwrites committed results:

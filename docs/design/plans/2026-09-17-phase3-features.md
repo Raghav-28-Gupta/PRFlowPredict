@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13, pandas 2.3, numpy, pyarrow, pytest. No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-17-phase3-features-design.md`
+**Spec:** `docs/design/specs/2026-09-17-phase3-features-design.md`
 
 **Deviation from spec, recorded here:** §5.2 says `global_merge_rate` is positional and existing callers pass it. This plan makes it `global_merge_rate: float | None = None` and raises `ValueError` if `author` is given without it. The author-history path is the only consumer, so Phase 2's `baseline.py`, `eda_report.py`, and their tests are untouched. Same guarantee, less churn.
 
