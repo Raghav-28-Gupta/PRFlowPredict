@@ -177,7 +177,10 @@ January days it adds that only PRs opened from 2026-01-01 have scores.
   - recomputed with `metrics.auc_pr`, the A AUC-PR from `score_a` and the baseline AUC-PR
     from `baseline_score` equal the A FULL run's `auc_pr` and `baseline_auc_pr` to 1e-12;
   - recomputed with `metrics.precision_at_k` in the extract's row order, P@10 from `score_a`
-    equals the run's `precision_at_10` to 1e-12;
+    and from `baseline_score` equal the run's `precision_at_10` and `baseline_p10` to 1e-12.
+    The model's scores rarely tie, so only the baseline's P@10, whose scores barely vary
+    within a repo, actually depends on the row order. Its check is what proves the order was
+    kept;
   - for every B fold `k`, the set of repos with `fold_b == k` equals that run's
     `test_repos`;
   - 14,135 rows, unique `pr_id`, no null score, and three non-empty drivers per scenario;
