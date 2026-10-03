@@ -53,6 +53,54 @@ def test_a_day_with_nobody_waiting_says_so():
     assert "early January" in at.info[0].value
 
 
+def _markdown(at, start):
+    return next(m.value for m in at.markdown if m.value.startswith(start))
+
+
+def test_the_tally_shows_the_whole_lists_stall_count_beside_the_top_three():
+    """PRs still waiting at a moment are survivors and mostly stall, so a top-3 count alone
+    reads as skill it does not measure. The line must show the list's own rate and say so."""
+    at = _app()
+    prs = triage.load()
+    at_ = triage.moment(triage.DEFAULT_DAY)
+    listing = triage.ranked(prs, triage.default_repo(prs, at_), at_, "A")
+    stalled, k = triage.tally(listing)
+    line = _markdown(at, "**Of the top")
+    assert f"Of the top {k} by risk, {stalled} stalled" in line
+    assert f"of all {len(listing)} PRs waiting, {int(listing['stalled'].sum())} did" in line
+    assert "cannot show how well the model ranks" in line
+
+
+def test_the_seen_note_describes_one_model_for_all_repos():
+    """kdlbs/kandev has no PRs before 2026, so 'trained on this repo's own earlier PRs' is false."""
+    at = _app()
+    at.sidebar.selectbox[0].set_value("kdlbs/kandev").run()
+    note = _markdown(at, "**Seen in training:**")
+    assert f"all {len(triage.repos(triage.load()))} repos" in note and "if it had any" in note
+    assert "this repo's own earlier PRs" not in note
+
+
+def test_the_header_says_only_prs_opened_in_2026_are_listed():
+    at = _app()
+    assert any("Only PRs opened from 1 January 2026 have scores" in m.value for m in at.markdown)
+
+
+def test_the_caption_says_risk_is_a_ranking_score_not_a_probability():
+    at = _app()
+    assert "not a calibrated probability" in at.caption[0].value
+
+
+def test_demo_requirements_pin_only_what_the_app_needs_at_the_root_versions():
+    """Spec section 3: streamlit, pandas and pyarrow only. Pinning numpy as well blocked Python
+    3.14, which numpy 2.2.6 has no wheel for."""
+    def pins(path):
+        lines = [ln.split("#")[0].strip() for ln in path.read_text(encoding="utf-8").splitlines()]
+        return dict(ln.split("==") for ln in lines if "==" in ln)
+    demo, root = pins(APP.parent / "requirements.txt"), pins(APP.parents[1] / "requirements.txt")
+    assert set(demo) == {"streamlit", "pandas", "pyarrow"}
+    assert all(demo[p] == root[p] for p in demo)
+
+
 def test_the_app_hard_codes_no_result_number():
     assert re.search(r"\b0\.\d{3}\b", APP.read_text(encoding="utf-8")) is None
 

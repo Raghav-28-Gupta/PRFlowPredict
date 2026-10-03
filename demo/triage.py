@@ -42,11 +42,21 @@ def awaiting_review(prs: pd.DataFrame, at: pd.Timestamp) -> pd.DataFrame:
 
 
 def outcome(rows: pd.DataFrame) -> pd.Series:
-    """What actually happened: when the first review came, and whether the PR stalled."""
-    days = (rows["first_review_at"] - rows["created_at"]).dt.total_seconds() / 86400
+    """What actually happened: when the first review came, or that the PR was closed without
+    one (most never-reviewed PRs were), and whether the PR stalled."""
+    def days(end: pd.Series) -> pd.Series:
+        return (end - rows["created_at"]).dt.total_seconds() / 86400
+
+    def text(reviewed: float, closed: float) -> str:
+        if not pd.isna(reviewed):
+            return f"reviewed after {reviewed:.1f} days"
+        if not pd.isna(closed):
+            return f"closed after {closed:.1f} days without a review"
+        return "never reviewed"
+
     # built row by row: an empty selection must still give an (empty) column of strings
-    return pd.Series([("never reviewed" if pd.isna(d) else f"reviewed after {d:.1f} days")
-                      + (", stalled" if slow else "") for d, slow in zip(days, rows["is_slow"])],
+    return pd.Series([text(r, c) + (", stalled" if slow else "") for r, c, slow
+                      in zip(days(rows["first_review_at"]), days(rows["closed_at"]), rows["is_slow"])],
                      index=rows.index, dtype=object)
 
 

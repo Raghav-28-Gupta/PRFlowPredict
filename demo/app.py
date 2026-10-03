@@ -16,8 +16,8 @@ import triage  # noqa: E402
 GITHUB = "https://github.com/Raghav-28-Gupta/PRFlowPredict"
 MODELS = {"Seen in training (within-project)": "A", "Unseen repo (cold-start)": "B"}
 MODEL_NOTES = {
-    "A": "**Seen in training:** scores from the model trained on this repo's own earlier PRs "
-         "(those opened before 2026).",
+    "A": "**Seen in training:** scores from one model trained on the PRs opened before 2026 in "
+         "all {n} repos, so it has seen this repo's earlier PRs, if it had any.",
     "B": "**Unseen repo:** scores from the model trained without this repo, as if it were new "
          "to the model.",
 }
@@ -44,8 +44,9 @@ st.markdown(
     "A replay of the 2026 test period PRFlowPredict was evaluated on, not live data. Pick a "
     "repo and a day: the list shows the PRs that were waiting for their first review at the "
     "start of that day (00:00 UTC), ranked by the risk score the model gave each one **when it "
-    "was opened**. Scores are never updated as a PR waits.")
-st.markdown(MODEL_NOTES[scenario])
+    "was opened**. Scores are never updated as a PR waits. Only PRs opened from 1 January 2026 "
+    "have scores, so older PRs still waiting are not listed.")
+st.markdown(MODEL_NOTES[scenario].format(n=len(repo_names)))
 st.markdown(
     "Within a project the model ranks well; on unseen repos its advantage depends on the "
     "repo's slow-rate history. The measured results, with their caveats, are in the "
@@ -59,8 +60,12 @@ if listing.empty:
     st.info(note)
 else:
     stalled, k = triage.tally(listing)
-    st.markdown(f"**Of the top {k} by risk, {stalled} stalled** "
-                "(no first review within 7 days of opening).")
+    st.markdown(
+        f"**Of the top {k} by risk, {stalled} stalled; of all {len(listing)} PRs waiting, "
+        f"{int(listing['stalled'].sum())} did** (stalled: no first review within 7 days of "
+        "opening). Most PRs still waiting at a given moment go on to stall, and any already "
+        "waiting 7 days has stalled by definition, so this list cannot show how well the model "
+        f"ranks. That is measured when PRs open, over every test PR: see the [README]({GITHUB}#readme).")
     st.dataframe(
         listing,
         hide_index=True,
@@ -77,6 +82,7 @@ else:
         },
     )
     st.caption(
+        "Risk is a ranking score, not a calibrated probability. "
         "Top drivers are the three features that moved this PR's score most, by exact "
         "TreeSHAP: model attribution, not cause (↑ pushed the risk up, ↓ down). Titles are as "
         "of data collection. A first review is the first review or comment by a human other "

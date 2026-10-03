@@ -91,6 +91,13 @@ def test_outcome_says_when_the_review_came_and_whether_it_stalled():
         "reviewed after 0.5 days", "reviewed after 10.0 days, stalled", "never reviewed, stalled"]
 
 
+def test_outcome_says_when_a_pr_was_closed_without_a_review():
+    """Most never-reviewed PRs were closed within days; 'never reviewed' alone would hide that."""
+    df = _prs((1, -H, 64 * H, None, 0.9, True))
+    assert triage.ranked(df, "o/r", T, "A")["outcome"].tolist() == [
+        "closed after 2.7 days without a review, stalled"]
+
+
 def test_tally_counts_the_stalled_among_the_top_three():
     df = _prs(*[(n, -H, None, None, 1 - n / 10, n % 2 == 1) for n in range(1, 6)])
     assert triage.tally(triage.ranked(df, "o/r", T, "A")) == (2, 3)

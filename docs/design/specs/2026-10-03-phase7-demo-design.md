@@ -100,8 +100,10 @@ features with the largest |SHAP| become one string, in the form
 - **Ranking.** Descending by the chosen scenario's score. Ties are broken by `created_at`
   ascending (the older PR first), then `number`, so the order is deterministic.
 - **Days waited so far** is `(t − created_at)` in days.
-- **Outcome.** "reviewed after N days" from `first_review_at`, or "never reviewed". Also
-  "stalled" when `is_slow` is true, meaning no first review within 7 days.
+- **Outcome.** "reviewed after N days" from `first_review_at`; otherwise "closed after N days
+  without a review" when `closed_at` is set (most never-reviewed PRs were closed within days);
+  otherwise "never reviewed". Also "stalled" when `is_slow` is true, meaning no first review
+  within 7 days.
 - **Tally.** For the top `k = 3` rows, how many stalled, as an "N of 3" count. When fewer
   than 3 are awaiting review, `k` is the list length.
 - **PRs opened before 2026-01-01 have no score.** They never appear, even if they were still
@@ -120,17 +122,23 @@ with ties broken alphabetically. Both are computed from the extract by `triage`.
 
 **Main area, in order:**
 1. A short header: what the app is (a replay of the evaluated 2026 test period, not live
-   data), and that each score is the one the model gave when the PR was opened, never
-   updated afterwards.
-2. One line describing the selected model. Unseen: "scores from the model trained without
-   this repo, as if it were new". Then one sentence of context with no numbers, pointing to
+   data), that each score is the one the model gave when the PR was opened, never updated
+   afterwards, and that only PRs opened from 1 January 2026 have scores, so older PRs still
+   waiting are not listed.
+2. One line describing the selected model. Seen: one model trained on the pre-2026 PRs of
+   all the repos, so it has seen this repo's earlier PRs if it had any (one repo has none).
+   Unseen: "scores from the model trained without this repo, as if it were new". Then one sentence of context with no numbers, pointing to
    the README and report for results: within a project the model ranks well, while on unseen
    repos it leans on the repo's slow-rate history.
-3. The tally line for the top 3.
+3. The tally line for the top 3, beside the whole list's own stall count, with the reason
+   the list cannot test the ranking: PRs still waiting at a moment are survivors and mostly
+   stall, and any already waiting 7 days has stalled by definition. The ranking is measured
+   at open, over every test PR (README).
 4. The table, one row per PR awaiting review: rank, risk score (2 decimals), PR (number
    linked to its URL, then the title), days waited, top drivers, outcome.
-5. A caption under the table: drivers are model attribution, not cause, and the title shown
-   is the title at collection time.
+5. A caption under the table: risk is a ranking score, not a calibrated probability;
+   drivers are model attribution, not cause; and the title shown is the title at collection
+   time.
 
 **Empty list.** When no PR is awaiting review at the moment, a message says so. On early
 January days it adds that only PRs opened from 2026-01-01 have scores.
