@@ -29,3 +29,6 @@ scipy==1.17.0           # report6.py's spearmanr(...).statistic needs scipy >= 1
                         # older resolved versions raise AttributeError on gate check 2
 numpy==2.2.6            # paired_repo_bootstrap's intervals depend on default_rng().choice's
                         # stream, which numpy does not guarantee across versions
+
+# Phase 7
+streamlit==1.65.0       # the demo (demo/app.py); the tests run it headless with AppTest

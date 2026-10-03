@@ -1,0 +1,6 @@
+# The deployed demo only (Streamlit Community Cloud installs this file, not the root one).
+# Pinned to the versions in the root requirements.txt.
+streamlit==1.65.0
+pandas==2.3.3
+pyarrow==25.0.1
+numpy==2.2.6
