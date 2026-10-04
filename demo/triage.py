@@ -195,6 +195,22 @@ def wait_buckets(prs: pd.DataFrame) -> pd.DataFrame:
                          "stalled": [b in STALLED_BUCKETS for b in WAIT_BUCKETS]})
 
 
+def wait_summary(prs: pd.DataFrame) -> dict:
+    """Chapter 1's headline shares: reviewed within a day; stalled; of the PRs closed without a
+    review, how many closed within a day of opening; and how many were still open and unreviewed a
+    week after opening (the ones really left waiting)."""
+    day, wk = pd.Timedelta(days=1), pd.Timedelta(days=7)
+    waited = prs["first_review_at"] - prs["created_at"]
+    lasted = prs["closed_at"] - prs["created_at"]
+    closed_unreviewed = prs["first_review_at"].isna() & prs["closed_at"].notna()
+    no_review = prs["first_review_at"].isna() | (waited > wk)
+    still_open = prs["closed_at"].isna() | (lasted > wk)
+    return {"quick": float((waited < day).mean()),
+            "stalled": float(prs["is_slow"].mean()),
+            "closed_fast": float((lasted[closed_unreviewed] < day).mean()) if closed_unreviewed.any() else 0.0,
+            "limbo": float((no_review & still_open).mean())}
+
+
 # ---------------------------------------------------------------------------
 # chapter 2: one repo's PRs over time
 # ---------------------------------------------------------------------------

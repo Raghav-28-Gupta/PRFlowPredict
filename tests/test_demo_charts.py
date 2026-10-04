@@ -27,6 +27,28 @@ def _params(chart):
     return chart.to_dict().get("params", [])
 
 
+def _luminance(colour: str) -> float:
+    def linear(c: float) -> float:
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+
+
+def _contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def test_text_and_rule_colours_read_on_both_light_and_dark_surfaces():
+    """st.context.theme can be stale on a first load, so a chart drawn for the other theme must
+    still be legible: text, rules and rings use one colour in both modes, clearing 3:1 on both
+    chart surfaces."""
+    for role in ("ink", "muted"):
+        assert charts.PALETTE["light"][role] == charts.PALETTE["dark"][role]
+        for surface in ("#fcfcfb", "#1a1a19"):
+            assert _contrast(charts.PALETTE["light"][role], surface) >= 3, (role, surface)
+
+
 def test_both_themes_define_every_colour_role():
     assert set(charts.PALETTE["light"]) == set(charts.PALETTE["dark"])
 

@@ -4,6 +4,8 @@ Chapters are reached with AppTest.switch_page on their page files (views/), whic
 current chapter between runs; the Back/Next buttons are tested separately."""
 import ast
 import importlib
+import json
+import random
 import re
 from pathlib import Path
 
@@ -208,9 +210,17 @@ def test_with_nothing_selected_why_explains_the_riskiest_pr_waiting_on_the_defau
     assert f"Why the Seen in training model scored it {top['score_a']:.2f}" in [s.value for s in at.subheader]
 
 
-def test_the_why_caption_says_attribution_not_cause_and_that_bars_add_up():
+def test_the_why_caption_says_the_bars_reach_the_scores_log_odds_not_the_score():
+    prs, features = triage.load(), triage.load_features()
+    at_ = triage.moment(triage.DEFAULT_DAY)
+    repo = triage.default_repo(prs, at_)
+    waiting = triage.awaiting_review(prs[prs["repo"] == repo], at_)
+    pr = waiting.sort_values(["score_a", "number"], ascending=[False, True]).head(1)
+    rows, base = triage.why(pr, "A", features)
     caption = _at("why").caption[0].value
-    assert "Model attribution, not cause" in caption and "add up to the score shown" in caption
+    assert "Model attribution, not cause" in caption and "add up to the score shown" not in caption
+    assert f"Together they reach {base + rows['push'].sum():+.2f}, the log-odds of the score shown" in caption
+    assert f"{base + rows['push'].sum():+.2f}" == f"{triage.logit(pr['score_a'].iloc[0]):+.2f}"
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +235,8 @@ def test_the_game_deals_four_cards_and_reveal_scores_the_round():
     assert not at.exception
     text = _text(at)
     assert text.count("**Stalled**") == 1 and text.count("Reviewed within 7 days") == 3
-    assert "You picked PR 2" in text and "This session: you" in text and "of 1" in text
+    assert "You picked PR 2" in text and "This session with the Seen in training model: you" in text
+    assert "of 1" in text
 
 
 def test_deal_again_deals_a_new_round():
@@ -261,6 +272,135 @@ def test_the_limits_chapter_names_the_four_limits():
     text = _text(_at("limits"))
     for phrase in ("never measured", "small sample", "2026 snapshots", "cannot measure ranking"):
         assert phrase in text, phrase
+
+
+# ---------------------------------------------------------------------------
+# final-review fixes
+# ---------------------------------------------------------------------------
+
+def test_the_problem_chapter_says_most_stalled_prs_were_closed_and_few_were_left_waiting():
+    prs = triage.load()
+    unreviewed = prs[prs["first_review_at"].isna() & prs["closed_at"].notna()]
+    fast = ((unreviewed["closed_at"] - unreviewed["created_at"]).dt.total_seconds() < 86400).mean()
+    week = 7 * 86400
+    no_review = prs["first_review_at"].isna() | ((prs["first_review_at"] - prs["created_at"]).dt.total_seconds() > week)
+    still_open = prs["closed_at"].isna() | ((prs["closed_at"] - prs["created_at"]).dt.total_seconds() > week)
+    limbo = (no_review & still_open).mean()
+    text = _text(_at("problem"))
+    assert "human-authored" in text
+    assert f"{fast:.0%} of them within a day of opening" in text
+    assert f"{limbo:.0%} were still open and unreviewed a week after opening" in text
+
+
+def test_the_game_sentence_names_its_eligibility_filter():
+    prs = triage.load()
+    weeks = triage.eligible_weeks(prs)
+    line = _markdown(_at("test_yourself"), "Over every round this game can deal")
+    assert f"{len(weeks)} project-weeks, in {len({r for r, _ in weeks})} of the {len(triage.repos(prs))} projects" in line
+
+
+def test_a_revealed_round_keeps_the_model_it_was_revealed_with():
+    at = _at("test_yourself")
+    ids = list(at.session_state["game"]["ids"])
+    at.button(key="pick_0").click().run()
+    at.button(key="reveal").click().run()
+    at.sidebar.radio[0].set_value(UNSEEN).run()
+    assert not at.exception
+    text = _text(at)
+    rnd = triage.load().set_index("pr_id").loc[ids]
+    assert all(f"risk {s:.2f}" in text for s in rnd["score_a"])
+    assert "The Seen in training model picked" in text and "with the Seen in training model" in text
+
+
+def test_reveal_counts_a_round_only_once(monkeypatch):
+    """A stale second click on Reveal must not add a phantom round to the tally."""
+    monkeypatch.syspath_prepend(str(DEMO))
+    chapters = importlib.import_module("chapters")
+    prs = triage.load()
+    rnd = triage.deal(prs, random.Random(1))
+    ctx = chapters.Context(prs, triage.load_features(), {}, {"A": 0.5, "B": 0.5}, "A", "x/y", False, "light")
+    state = {"_ctx": ctx, "game": {"ids": list(rnd["pr_id"]), "pick": 0, "revealed": False}}
+    monkeypatch.setattr(chapters.st, "session_state", state)
+    chapters._reveal()
+    chapters._reveal()
+    assert state["game"]["tally"]["A"]["played"] == 1
+
+
+def test_a_callback_uses_its_own_sessions_model_not_the_last_viewers():
+    """Viewers share one server process. A game callback must read its own session's choices, not
+    whatever another viewer's run left behind."""
+    prs = triage.load()
+    rnd = next(r for r in (triage.deal(prs, random.Random(s)) for s in range(200))
+               if triage.model_pick(r, "A") != triage.model_pick(r, "B"))
+    presenter = _at("test_yourself")
+    game = dict(presenter.session_state["game"])
+    game.update(ids=list(rnd["pr_id"]), pick=None, revealed=False)
+    presenter.session_state["game"] = game
+    presenter.run()
+    presenter.button(key="pick_0").click().run()
+    viewer = _app()
+    viewer.sidebar.radio[0].set_value(UNSEEN).run()          # another viewer's run, on the Unseen model
+    presenter.button(key="reveal").click().run()
+    assert not presenter.exception
+    assert presenter.session_state["game"]["model_pick"] == triage.model_pick(rnd, "A")
+
+
+def _timeline_chart_id(at: AppTest) -> str:
+    def walk(node):
+        yield node
+        children = getattr(node, "children", None)
+        if isinstance(children, dict):
+            for child in children.values():
+                yield from walk(child)
+    return next(n.proto.id for n in walk(at._tree)
+                if type(getattr(n, "proto", None)).__name__ == "VegaLiteChart" and n.proto.id.endswith("-timeline"))
+
+
+def _run_with_timeline_click(at: AppTest, chart_id: str, pr_id: str) -> AppTest:
+    """Re-run as if the browser sent a click on pr_id. Chart selections cannot be driven through
+    AppTest's public API, so this uses its private one (Streamlit 1.65): the selection travels as a
+    JSON string_value on the chart's widget id."""
+    states = at._tree.get_widget_states()
+    widget = states.widgets.add()
+    widget.id = chart_id
+    widget.string_value = json.dumps({"selection": {"pick": [{"pr_id": pr_id}]}})
+    at._run(states)
+    return at
+
+
+def test_a_stale_timeline_click_after_a_repo_change_does_not_crash():
+    at = _at("watch")
+    prs = triage.load()
+    repo = at.sidebar.selectbox[0].value
+    pr_id = prs.loc[prs["repo"] == repo, "pr_id"].iloc[0]
+    chart = _timeline_chart_id(at)
+    _run_with_timeline_click(at, chart, pr_id)
+    assert not at.exception and at.session_state["selected_pr"] == pr_id
+    at.sidebar.selectbox[0].set_value(next(r for r in triage.repos(prs) if r != repo))
+    _run_with_timeline_click(at, chart, pr_id)                # the browser re-sends the old selection
+    assert not at.exception
+
+
+def test_the_revealed_game_and_an_empty_watch_day_carry_the_risk_caption():
+    at = _at("test_yourself")
+    at.button(key="pick_0").click().run()
+    at.button(key="reveal").click().run()
+    assert any("not a calibrated probability" in c.value for c in at.caption)
+    prs, day = triage.load(), triage.FIRST_DAY
+    empty = next(r for r in triage.repos(prs) if triage.ranked(prs, r, triage.moment(day), "A").empty)
+    at = _at("watch")
+    at.sidebar.selectbox[0].set_value(empty).run()
+    at.slider(key="day").set_value(day).run()
+    assert any("not a calibrated probability" in c.value for c in at.caption)
+
+
+def test_the_game_cards_say_titles_are_as_of_data_collection():
+    text = _text(_at("test_yourself"))
+    assert "title (as of data collection)" in text and "only what was known" not in text
+
+
+def test_the_importance_caption_says_it_is_a_sample():
+    assert any("a sample of the test PRs" in c.value for c in _at("why").caption)
 
 
 # ---------------------------------------------------------------------------

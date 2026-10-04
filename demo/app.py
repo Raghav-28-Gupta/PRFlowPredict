@@ -46,7 +46,10 @@ notes = st.sidebar.toggle("Speaker notes", value=False)
 theme = getattr(st.context, "theme", None)
 mode = "dark" if getattr(theme, "type", None) == "dark" else "light"
 
-chapters.ctx = chapters.Context(prs, features, results, hit_rates, scenario, repo, notes, mode)
+# Per session, never a module global: viewers share one server process, and callbacks run
+# before this script does.
+st.session_state["_ctx"] = ctx = chapters.Context(prs, features, results, hit_rates, scenario, repo,
+                                                   notes, mode)
 # One small page file per chapter (views/), each calling its function in chapters.py: file pages
 # keep their place between runs in Streamlit's AppTest, so the tests can drive every chapter.
 pages = [st.Page("views/problem.py", title="1. The problem", url_path="problem", default=True),
@@ -55,5 +58,5 @@ pages = [st.Page("views/problem.py", title="1. The problem", url_path="problem",
          st.Page("views/test_yourself.py", title="4. Test yourself", url_path="test-yourself"),
          st.Page("views/transfer.py", title="5. Does it transfer?", url_path="does-it-transfer"),
          st.Page("views/limits.py", title="6. Honest limits", url_path="honest-limits")]
-chapters.ctx.pages = pages
+ctx.pages = pages
 st.navigation(pages).run()

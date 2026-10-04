@@ -13,13 +13,17 @@ import pandas as pd
 
 alt.data_transformers.disable_max_rows()        # the largest repo has 5,178 replayed PRs
 
+# Text, rules and rings are one mid-grey in both modes (3.5:1 on the light surface, 4.9:1 on the
+# dark one): st.context.theme can be stale on a first load, so a chart drawn for the other theme
+# must still read. Only the series colours have separate light and dark steps.
+NEUTRAL = "#898781"
 PALETTE = {
     "light": {"fine": "#2a78d6", "stalled": "#eb6834", "up": "#e34948", "down": "#2a78d6",
               "full": "#2a78d6", "nlr": "#86b6ef", "baseline": "#898781", "random": "#c3c2b7",
-              "ink": "#0b0b0b", "muted": "#52514e"},
+              "ink": NEUTRAL, "muted": NEUTRAL, "dot": "#ffffff", "ring": "#3a3a38"},
     "dark": {"fine": "#3987e5", "stalled": "#d95926", "up": "#e66767", "down": "#3987e5",
              "full": "#3987e5", "nlr": "#86b6ef", "baseline": "#898781", "random": "#52514e",
-             "ink": "#ffffff", "muted": "#c3c2b7"},
+             "ink": NEUTRAL, "muted": NEUTRAL, "dot": "#ffffff", "ring": "#3a3a38"},
 }
 FINE, STALLED = "first review within 7 days", "stalled: no first review within 7 days"
 ON_BAR = {"model, all features": "#ffffff"}       # text inside bars: white on the dark blue, else near-black
@@ -132,7 +136,8 @@ def results_chart(res: dict, mode: str = "light") -> alt.LayerChart:
         x=x, xOffset=offset, y=alt.datum(0), text=alt.Text("auc_pr:Q", format=".3f"),
         color=alt.Color("text_color:N", scale=None))
     folds = res["folds"][res["folds"]["folds"] > 1]
-    dots = alt.Chart(folds).mark_circle(size=36, color=pal["ink"], opacity=0.75).encode(
+    dots = alt.Chart(folds).mark_circle(size=40, color=pal["dot"], stroke=pal["ring"], strokeWidth=1.2,
+                                        opacity=1).encode(
         x=x, xOffset=offset, y=y,
         tooltip=[alt.Tooltip("series:N"), alt.Tooltip("fold:Q", title="held-out fold"),
                  alt.Tooltip("auc_pr:Q", format=".3f")])
@@ -154,9 +159,11 @@ def p10_chart(res: dict, mode: str = "light") -> alt.LayerChart:
         color=color, tooltip=[alt.Tooltip("series:N"), alt.Tooltip("p10:Q", format=".3f", title="precision"),
                               alt.Tooltip("lo:Q", format=".3f", title="interval low"),
                               alt.Tooltip("hi:Q", format=".3f", title="interval high")])
-    whisker = alt.Chart(data.dropna(subset=["lo"])).mark_rule(color=pal["ink"], strokeWidth=2).encode(
-        y=alt.Y("series:N", sort=order), x="lo:Q", x2="hi:Q")
+    # a dark line on a white halo reads on the bar and on either theme's background
+    interval = alt.Chart(data.dropna(subset=["lo"])).encode(y=alt.Y("series:N", sort=order), x="lo:Q", x2="hi:Q")
+    halo = interval.mark_rule(color=pal["dot"], strokeWidth=5)
+    whisker = interval.mark_rule(color=pal["ring"], strokeWidth=2)
     labels = base.mark_text(align="left", dx=6, color=pal["ink"]).encode(
         x=alt.X("plotted:Q"), text="label:N").transform_calculate(
         plotted="isValid(datum.hi) ? datum.hi : datum.p10")
-    return (bars + whisker + labels).properties(height=alt.Step(40))
+    return (bars + halo + whisker + labels).properties(height=alt.Step(40))
