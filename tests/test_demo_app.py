@@ -159,8 +159,8 @@ def test_the_app_avoids_retracted_phrasing(pattern, reason):
 def test_the_demo_imports_only_what_its_own_requirements_install():
     """Streamlit Cloud installs demo/requirements.txt, not the project's: no sklearn, lightgbm,
     shap, or project module may be imported by the deployed files."""
-    allowed = {"__future__", "datetime", "importlib", "pathlib", "re", "sys", "streamlit", "pandas",
-               "triage"}
+    allowed = {"__future__", "datetime", "importlib", "json", "math", "pathlib", "random", "re", "sys",
+               "streamlit", "pandas", "triage"}
     for name in ("app.py", "triage.py"):
         tree = ast.parse((APP.parent / name).read_text(encoding="utf-8"))
         mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
