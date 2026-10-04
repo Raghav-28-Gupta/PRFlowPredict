@@ -26,11 +26,10 @@ stalling.
 
 ## Try the demo
 
-A small Streamlit app replays the 2026 test period: pick a repo and a day to see the PRs that
-were waiting for a first review, ranked by the risk score each got when it was opened, next to
-what actually happened. A toggle swaps in the model that never saw that repo. A **Look up a PR**
-tab shows any replayed PR's scores from both models, its drivers and what happened, and
-**Random PR** picks one for you.
+A six-chapter Streamlit walkthrough of the 2026 test period: how long PRs wait for a first
+review; one repo's PRs on a timeline, scored when they opened (click any to see why it scored as
+it did); a guess-the-stall game against the model; and the cold-start result, with a switch to the
+model that never saw the repo.
 
 **[Open the live demo](https://prflowpredict-858tjrjzhhafzgblxb6bmo.streamlit.app/)**. It can take
 a few seconds to wake up. To run it locally instead:

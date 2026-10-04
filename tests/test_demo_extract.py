@@ -2,7 +2,9 @@
 
 Runs from a plain clone: it reads only demo/data/prs.parquet and data/phase4_runs.json."""
 import json
+import re
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -68,4 +70,24 @@ def test_the_slow_flag_agrees_with_the_first_review_time(prs):
 
 
 def test_no_author_identity_is_stored(prs):
-    assert not [c for c in prs.columns if "author" in c or "login" in c]
+    """Feature names such as author_prior_slow_rate_here are fine; logins and ids are not."""
+    assert not [c for c in prs.columns if re.search(r"login|database_id|author_id|author_name|email", c)]
+
+
+@pytest.mark.parametrize("s", ["a", "b"])
+def test_each_rows_shap_values_add_up_to_its_score(prs, s):
+    margin = prs[f"base_{s}"] + prs[[f"shap_{s}__{c}" for c in bdd.FULL]].astype(float).sum(axis=1)
+    logit = np.log(prs[f"score_{s}"] / (1 - prs[f"score_{s}"]))
+    assert (margin - logit).abs().max() < 1e-4
+
+
+@pytest.mark.parametrize("s", ["a", "b"])
+def test_each_rows_drivers_text_is_recomputable_from_its_stored_values(prs, s):
+    for _, row in prs.sample(300, random_state=1).iterrows():
+        shap_row = np.array([row[f"shap_{s}__{c}"] for c in bdd.FULL], dtype=float)
+        x_row = pd.Series({c: row[f"x__{c}"] for c in bdd.FULL})
+        assert bdd.format_drivers(shap_row, x_row) == row[f"drivers_{s}"]
+
+
+def test_features_json_is_what_the_build_writes():
+    assert json.loads((bdd.OUT.parent / bdd.FEATURES_JSON).read_text(encoding="utf-8")) == bdd.feature_list()

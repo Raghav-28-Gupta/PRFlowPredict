@@ -36,7 +36,7 @@ def _valid():
     return pd.DataFrame({
         "repo": ["o/a", "o/b"], "pr_id": ["P1", "P2"], "number": [1, 2], "url": ["u1", "u2"],
         "title": ["t1", "t2"], "score_a": [0.1, 0.2], "fold_b": [0, 1], "score_b": [0.3, 0.4],
-        "drivers_a": ["d", "d"], "drivers_b": ["d", "d"],
+        "drivers_a": ["d", "d"], "drivers_b": ["d", "d"], "base_a": [0.1, 0.1], "base_b": [0.2, 0.3],
     })
 
 
@@ -44,14 +44,32 @@ def test_validate_accepts_a_complete_extract():
     bdd.validate(_valid(), {"o/a": 0, "o/b": 1})
 
 
-@pytest.mark.parametrize("breakage", ["missing B score", "wrong fold", "duplicate pr_id"])
+@pytest.mark.parametrize("breakage", ["missing B score", "wrong fold", "duplicate pr_id", "missing base"])
 def test_validate_refuses_a_broken_extract(breakage):
     df = _valid()
     if breakage == "missing B score":
         df.loc[0, "score_b"] = np.nan
     elif breakage == "wrong fold":
         df.loc[1, "fold_b"] = 0
+    elif breakage == "missing base":
+        df.loc[0, "base_b"] = np.nan
     else:
         df.loc[1, "pr_id"] = "P1"
     with pytest.raises(ValueError):
         bdd.validate(df, {"o/a": 0, "o/b": 1})
+
+
+def test_feature_list_is_the_full_features_in_model_order_with_labels_and_rates():
+    listed = bdd.feature_list()
+    assert [f["feature"] for f in listed] == list(fs.FEATURE_SETS["FULL"])
+    assert all(f["label"] == bdd.DRIVER_LABELS[f["feature"]] for f in listed)
+    assert {f["feature"] for f in listed if f["rate"]} == bdd.RATES
+
+
+def test_check_logit_accepts_consistent_values_and_refuses_a_gap():
+    sv = np.array([[0.5, -0.25], [1.0, 0.0]])
+    base = 0.1
+    score = 1 / (1 + np.exp(-(base + sv.sum(axis=1))))
+    bdd.check_logit(sv, base, score)
+    with pytest.raises(ValueError):
+        bdd.check_logit(sv, base + 0.01, score)

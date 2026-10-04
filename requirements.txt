@@ -32,3 +32,4 @@ numpy==2.2.6            # paired_repo_bootstrap's intervals depend on default_rn
 
 # Phase 7
 streamlit==1.65.0       # the demo (demo/app.py); the tests run it headless with AppTest
+altair==6.3.0           # the demo's interactive charts (installed with streamlit; pinned because demo/charts.py imports it)
