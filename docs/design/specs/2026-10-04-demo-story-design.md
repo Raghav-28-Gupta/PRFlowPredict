@@ -86,6 +86,9 @@ on synthetic frames, and computed at runtime from committed files.
   1 hour to 1 day, 1 to 7 days, or after more than 7 days, plus two buckets for no first review:
   "closed without a review" and "never reviewed, still open". All six buckets sum to every PR.
   The 7-day line falls between the third and fourth buckets.
+- **`wait_summary(prs)`.** Chapter 1's headline shares: reviewed within a day; stalled; of the PRs
+  closed without a review, how many closed within a day of opening; and how many were still open
+  and unreviewed a week after opening.
 - **`timeline(prs, repo, scenario, at)`.** One row per PR in the repo: `created_at`, `risk`
   (the chosen model's score), `stalled`, `waiting` (awaiting review at `at`, by the existing
   `awaiting_review` rule), `pr_id`, `number`, `title`, `outcome`.
@@ -154,8 +157,12 @@ largest repo has 5,178 replayed PRs.
 Unseen repo), used by chapters 2–5; a **repo** picker, used by chapters 2–3; a **Speaker notes**
 toggle, off by default.
 
-**Shared state in `st.session_state`:** `selected_pr` (a `pr_id`) and `game` (the current
-round, whether it has been revealed, and the session tally).
+**Shared state in `st.session_state`:**
+- `_ctx`: this session's context, which `app.py` sets on every run. Never a module global: viewers
+  share one server process, and callbacks run before the script does.
+- `selected_pr`: a `pr_id`. A timeline selection left over from another repo is ignored.
+- `game`: the current round, whether it has been revealed, the model it was revealed with, and a
+  tally per model. A second Reveal on the same round counts nothing.
 
 **Chapters (`demo/chapters.py`).** Each chapter shows a title, one visual, at most two short
 paragraphs, its speaker note when the toggle is on, and Back/Next buttons (`st.switch_page`).
