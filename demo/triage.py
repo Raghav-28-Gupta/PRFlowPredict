@@ -36,6 +36,20 @@ def moment(day: date) -> pd.Timestamp:
     return pd.Timestamp(day, tz="UTC")
 
 
+def format_value(value, dtype: str, rate: bool = False) -> str:
+    """Rates and shares to 2 decimals, counts as integers, booleans as yes/no. The one
+    formatter: build_demo_data.py writes the drivers text with it, the app shows values with it."""
+    if pd.isna(value):
+        return "missing"
+    if dtype == "bool":
+        return "yes" if bool(value) else "no"
+    if dtype == "str":
+        return str(value)
+    if rate:
+        return f"{float(value):.2f}"
+    return f"{int(round(float(value))):,}"
+
+
 def awaiting_review(prs: pd.DataFrame, at: pd.Timestamp) -> pd.DataFrame:
     """PRs opened before `at`, still open, and not yet reviewed. A PR reviewed or closed at
     exactly `at` is no longer waiting."""

@@ -1,0 +1,224 @@
+[
+  {
+    "feature": "created_hour_utc",
+    "label": "hour opened (UTC)",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "created_dayofweek",
+    "label": "weekday opened (Mon=0)",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "is_weekend",
+    "label": "opened at the weekend",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "is_cross_repository",
+    "label": "from a fork",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "author_account_age_days",
+    "label": "author's GitHub account age (days)",
+    "dtype": "float",
+    "rate": false
+  },
+  {
+    "feature": "body_len",
+    "label": "description length",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "has_body",
+    "label": "has a description",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "is_draft_at_open",
+    "label": "opened as a draft",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "n_labels_at_open",
+    "label": "labels at open",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "title_len_at_open",
+    "label": "title length",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "base_is_default",
+    "label": "targets the default branch",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "reviewer_requested_at_open",
+    "label": "reviewer requested at open",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "n_reviewers_requested_at_open",
+    "label": "reviewers requested at open",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "requested_team_at_open",
+    "label": "team review requested at open",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "additions_at_open",
+    "label": "lines added at open",
+    "dtype": "float",
+    "rate": false
+  },
+  {
+    "feature": "deletions_at_open",
+    "label": "lines deleted at open",
+    "dtype": "float",
+    "rate": false
+  },
+  {
+    "feature": "n_commits_at_open",
+    "label": "commits at open",
+    "dtype": "float",
+    "rate": false
+  },
+  {
+    "feature": "open_backlog_at_t",
+    "label": "open PRs in the repo",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "prs_opened_trailing_7d",
+    "label": "PRs opened in the repo, last 7 days",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "trailing_90d_slow_rate",
+    "label": "repo's recent slow rate",
+    "dtype": "float",
+    "rate": true
+  },
+  {
+    "feature": "trailing_n",
+    "label": "PRs behind the repo's slow rate",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "is_first_pr_here",
+    "label": "author's first PR here",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "n_prior_prs_here",
+    "label": "author's earlier PRs here",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "n_prior_merged_here",
+    "label": "author's merged PRs here",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "prior_merge_rate_here",
+    "label": "author's merge rate here",
+    "dtype": "float",
+    "rate": true
+  },
+  {
+    "feature": "days_since_first_pr_here",
+    "label": "days since author's first PR here",
+    "dtype": "float",
+    "rate": false
+  },
+  {
+    "feature": "author_prior_slow_rate_here",
+    "label": "author's past slow rate here",
+    "dtype": "float",
+    "rate": true
+  },
+  {
+    "feature": "author_prior_n",
+    "label": "PRs behind author's slow rate",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "n_assignable_users",
+    "label": "maintainers (assignable users)",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "n_mentionable_users",
+    "label": "community size (mentionable users)",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "owner_is_org",
+    "label": "owned by an organisation",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "has_codeowners",
+    "label": "has CODEOWNERS",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "has_pr_template",
+    "label": "has a PR template",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "has_contributing",
+    "label": "has CONTRIBUTING",
+    "dtype": "bool",
+    "rate": false
+  },
+  {
+    "feature": "n_ci_workflows",
+    "label": "CI workflows",
+    "dtype": "int",
+    "rate": false
+  },
+  {
+    "feature": "language_dominant",
+    "label": "main language",
+    "dtype": "str",
+    "rate": false
+  },
+  {
+    "feature": "repo_age_days_at_open",
+    "label": "repo age (days)",
+    "dtype": "float",
+    "rate": false
+  }
+]

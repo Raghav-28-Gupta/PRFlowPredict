@@ -1,14 +1,17 @@
-"""Phase 7: build the demo's committed extract, demo/data/prs.parquet.
+"""Phase 7: build the demo's committed extract, demo/data/prs.parquet, and its feature list,
+demo/data/features.json.
 
 Runs locally only. It reads Phase 4's gitignored outputs (predictions, boosters, the feature
-table, parsed PRs) and writes one small committed file, so the deployed app needs no model:
+table, parsed PRs) and writes small committed files, so the deployed app needs no model:
 
     python build_demo_data.py
 
 One row per Scenario A test PR, in the A predictions file's row order. Phase 4's P@10 breaks
 ties with a seeded permutation over that order, so keeping it is what lets
-tests/test_demo_extract.py reproduce Phase 4's numbers from the extract. Author identities
-are deliberately left out: the demo is about PRs, not people."""
+tests/test_demo_extract.py reproduce Phase 4's numbers from the extract. Each row also carries
+every feature's exact TreeSHAP value under both models, the explainer's base value and the
+feature values themselves, so the app's "why" chart adds up to the score it shows. Author
+identities are deliberately left out: the demo is about PRs, not people."""
 from __future__ import annotations
 
 import argparse
@@ -24,15 +27,19 @@ import experiment as ex
 import features
 import featuresets as fs
 import model
+from demo import triage
 
 ROOT = Path(__file__).parent
 OUT = ROOT / "demo" / "data" / "prs.parquet"
+FEATURES_JSON = "features.json"                     # written next to the extract
 FULL = fs.FEATURE_SETS["FULL"]
 ADDITIVITY_TOL = 1e-6
 RATES = {"trailing_90d_slow_rate", "prior_merge_rate_here", "author_prior_slow_rate_here"}
-COLUMNS = ["repo", "pr_id", "number", "url", "title", "created_at", "closed_at",
-           "first_review_at", "is_slow", "score_a", "fold_b", "score_b", "baseline_score",
-           "drivers_a", "drivers_b"]
+BASE_COLUMNS = ["repo", "pr_id", "number", "url", "title", "created_at", "closed_at",
+                "first_review_at", "is_slow", "score_a", "fold_b", "score_b", "baseline_score",
+                "drivers_a", "drivers_b"]
+COLUMNS = (BASE_COLUMNS + ["base_a", "base_b"] + [f"shap_a__{c}" for c in FULL]
+           + [f"shap_b__{c}" for c in FULL] + [f"x__{c}" for c in FULL])
 
 # A reader-facing name for every FULL feature (tests/test_build_demo_data.py checks coverage).
 DRIVER_LABELS = {
@@ -77,17 +84,9 @@ DRIVER_LABELS = {
 
 
 def format_value(feature: str, value) -> str:
-    """Rates and shares to 2 decimals, counts as integers, booleans as yes/no."""
-    if pd.isna(value):
-        return "missing"
-    dtype = features.COLUMN_SPEC[feature]["dtype"]
-    if dtype == "bool":
-        return "yes" if bool(value) else "no"
-    if dtype == "str":
-        return str(value)
-    if feature in RATES:
-        return f"{float(value):.2f}"
-    return f"{int(round(float(value))):,}"
+    """Rates and shares to 2 decimals, counts as integers, booleans as yes/no (the shared
+    formatter in demo/triage.py, so the app shows values exactly as the drivers text does)."""
+    return triage.format_value(value, features.COLUMN_SPEC[feature]["dtype"], feature in RATES)
 
 
 def format_drivers(shap_row: np.ndarray, x_row: pd.Series, k: int = 3) -> str:
@@ -99,21 +98,37 @@ def format_drivers(shap_row: np.ndarray, x_row: pd.Series, k: int = 3) -> str:
         f"{'↑' if shap_row[i] > 0 else '↓'}" for i in top)
 
 
-def drivers_for(booster, X: pd.DataFrame) -> list[str]:
+def feature_list() -> list[dict]:
+    """What demo/data/features.json holds: the FULL features in model order."""
+    return [{"feature": c, "label": DRIVER_LABELS[c], "dtype": features.COLUMN_SPEC[c]["dtype"],
+             "rate": c in RATES} for c in FULL]
+
+
+def explain(booster, X: pd.DataFrame) -> tuple[np.ndarray, float]:
     """Exact TreeSHAP (Phase 6's attribution.explain), refusing any additivity failure."""
     sv, ev = attribution.explain(booster, X)
     delta = attribution.additivity_delta(booster, X, sv, ev)
     if delta > ADDITIVITY_TOL:
         raise RuntimeError(f"SHAP additivity failed: max delta {delta:.3g} > {ADDITIVITY_TOL}")
-    return [format_drivers(sv[i], X.iloc[i]) for i in range(len(X))]
+    return sv, ev
+
+
+def check_logit(sv: np.ndarray, ev, score: np.ndarray, tol: float = ADDITIVITY_TOL) -> None:
+    """base + sum(SHAP) must be the logit of the score the extract stores, row by row."""
+    score = np.asarray(score, dtype=float)
+    gap = np.max(np.abs(np.asarray(ev) + sv.sum(axis=1) - np.log(score / (1 - score))))
+    if gap > tol:
+        raise ValueError(f"base + SHAP differs from logit(score) by up to {gap:.3g} > {tol}")
 
 
 def validate(out: pd.DataFrame, fold_of: dict[str, int]) -> None:
-    """The build checks of spec section 4, apart from additivity (checked in drivers_for)."""
+    """The build checks of spec section 4, apart from additivity (checked in explain and
+    check_logit)."""
     missing = sorted(set(FULL) - set(DRIVER_LABELS))
     if missing:
         raise ValueError(f"no DRIVER_LABELS entry for {missing}")
-    for col in ("number", "url", "title", "score_a", "fold_b", "score_b", "drivers_a", "drivers_b"):
+    for col in ("number", "url", "title", "score_a", "fold_b", "score_b", "drivers_a", "drivers_b",
+                "base_a", "base_b"):
         if out[col].isna().any():
             raise ValueError(f"{int(out[col].isna().sum())} rows have no {col}")
     wrong = out["fold_b"] != out["repo"].map(fold_of)
@@ -159,14 +174,25 @@ def build(root: Path = ROOT) -> pd.DataFrame:
     if not ids.isin(table.index).all():
         raise ValueError("A test rows missing from the feature table")
 
-    out["drivers_a"] = drivers_for(model.load(root / "data" / "models" / "A_FULL_fold0.txt"),
-                                   table.loc[ids, FULL])
-    out["drivers_b"] = pd.Series(pd.NA, index=out.index, dtype="object")
+    X = table.loc[ids, FULL]
+    sva, eva = explain(model.load(root / "data" / "models" / "A_FULL_fold0.txt"), X)
+    check_logit(sva, eva, out["score_a"].to_numpy())
+    svb, evb = np.full(sva.shape, np.nan), np.full(len(out), np.nan)
     for k in sorted(set(fold_of.values())):
-        rows = out["fold_b"] == k
-        booster = model.load(root / "data" / "models" / f"B_FULL_fold{k}.txt")
-        out.loc[rows, "drivers_b"] = drivers_for(booster, table.loc[out.loc[rows, "pr_id"], FULL])
+        rows = (out["fold_b"] == k).to_numpy()
+        sv, ev = explain(model.load(root / "data" / "models" / f"B_FULL_fold{k}.txt"), X[rows])
+        check_logit(sv, ev, out.loc[rows, "score_b"].to_numpy())
+        svb[rows], evb[rows] = sv, ev
+    out["drivers_a"] = [format_drivers(sva[i], X.iloc[i]) for i in range(len(X))]
+    out["drivers_b"] = [format_drivers(svb[i], X.iloc[i]) for i in range(len(X))]
+    out["base_a"], out["base_b"] = eva, evb
 
+    values = X.reset_index(drop=True).add_prefix("x__")
+    values["x__language_dominant"] = values["x__language_dominant"].astype(str)
+    out = pd.concat([out,
+                     pd.DataFrame(sva.astype("float32"), columns=[f"shap_a__{c}" for c in FULL]),
+                     pd.DataFrame(svb.astype("float32"), columns=[f"shap_b__{c}" for c in FULL]),
+                     values], axis=1)
     out["number"] = out["number"].astype("int64")
     out["fold_b"] = out["fold_b"].astype("int64")
     validate(out, fold_of)
@@ -181,8 +207,10 @@ def main(argv: list[str] | None = None) -> int:
     out = build(args.root)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     out.to_parquet(args.out, index=False)
+    (args.out.parent / FEATURES_JSON).write_text(json.dumps(feature_list(), indent=2) + "\n",
+                                                 encoding="utf-8", newline="\n")
     print(f"wrote {args.out}: {len(out):,} PRs, {out['repo'].nunique()} repos, "
-          f"{args.out.stat().st_size / 1e6:.1f} MB")
+          f"{args.out.stat().st_size / 1e6:.1f} MB, and {FEATURES_JSON}")
     return 0
 
 
