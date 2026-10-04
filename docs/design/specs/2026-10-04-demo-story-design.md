@@ -46,6 +46,7 @@ committed artifacts do not support.
 | `demo/triage.py` | Gains the logic for each chapter (§5). Still imports no Streamlit |
 | `demo/charts.py` | New: pure functions that return Altair charts (§6) |
 | `demo/chapters.py` | New: one function per chapter, plus the speaker notes (§7) |
+| `demo/views/*.py` | New: one two-line page file per chapter, each calling its function in `chapters.py`. Streamlit's AppTest keeps the current chapter between runs only for file pages, which the tests need |
 | `demo/app.py` | Becomes a thin shell: page config, sidebar, navigation (§7) |
 | `demo/requirements.txt`, `requirements.txt` | Add `altair==6.3.0` |
 | `tests/test_demo_*.py` | Extended and migrated to the chapter structure (§9) |
@@ -63,8 +64,8 @@ Phase 7 spec), so every existing integrity test keeps passing.
 | `x__<feature>` (37) | The model input the SHAP values explain, from `data/features/features.parquet` |
 
 **`demo/data/features.json`.** A list, in `featuresets.FEATURE_SETS["FULL"]` order, of
-`{"feature", "label", "dtype"}`. `label` comes from `build_demo_data.DRIVER_LABELS` and `dtype`
-from `features.COLUMN_SPEC`. This is the single source of feature labels for the app.
+`{"feature", "label", "dtype", "rate"}`. `label` comes from `build_demo_data.DRIVER_LABELS`,
+`dtype` from `features.COLUMN_SPEC`, and `rate` from `build_demo_data.RATES`. This is the single source of feature labels for the app.
 
 **One formatter.** `format_value` moves to `demo/triage.py`. It takes a feature's dtype and
 whether it is a rate, and `build_demo_data.py` imports it, so the drivers text in the extract and
@@ -145,7 +146,7 @@ largest repo has 5,178 replayed PRs.
 **Shell (`demo/app.py`).**
 - Page config, the cached data loads (extract, `features.json`, results, importance) and the
   sidebar.
-- `st.navigation` over the six chapters, then `run()`.
+- `st.navigation` over the six chapters' page files in `demo/views/` (§3), then `run()`.
 - It reloads its own modules (`triage`, `charts`, `chapters`) on every run, extending the stale
   module fix from PR #11.
 
