@@ -5,6 +5,7 @@
 
 A thin layer over triage.py. It hard-codes no result number: the measured results live in
 the README and the report, where tests/test_writeup_claims.py checks them."""
+import importlib
 import sys
 from pathlib import Path
 
@@ -12,6 +13,10 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent))      # triage.py sits next to this file
 import triage  # noqa: E402
+
+# Streamlit Community Cloud re-runs this script when the repo updates but keeps imported
+# modules in memory, so a new app.py could meet an old triage.py. Reload it every run.
+triage = importlib.reload(triage)
 
 GITHUB = "https://github.com/Raghav-28-Gupta/PRFlowPredict"
 MODELS = {"Seen in training (within-project)": "A", "Unseen repo (cold-start)": "B"}

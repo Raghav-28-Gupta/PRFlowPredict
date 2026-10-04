@@ -1,5 +1,6 @@
 """The demo app, run headless with Streamlit's AppTest (Phase 7 spec, sections 6, 7 and 9)."""
 import ast
+import importlib
 import re
 from pathlib import Path
 
@@ -133,6 +134,18 @@ def test_random_pr_fills_the_box_and_shows_its_card():
     assert len(at.metric) == 2
 
 
+def test_the_app_uses_the_current_triage_even_when_an_old_copy_is_cached(monkeypatch):
+    """Streamlit Community Cloud re-runs app.py when the repo updates but keeps imported
+    modules in memory, so the deployed app once ran the new app.py against the old triage.py:
+    AttributeError: module 'triage' has no attribute 'random_pr'. Recreate that stale copy."""
+    monkeypatch.syspath_prepend(str(APP.parent))
+    cached = importlib.import_module("triage")
+    monkeypatch.delattr(cached, "random_pr")          # what the old triage.py did not have
+    at = _app()
+    at.button(key="random_pr").click().run()
+    assert not at.exception
+
+
 def test_the_app_hard_codes_no_result_number():
     assert re.search(r"\b0\.\d{3}\b", APP.read_text(encoding="utf-8")) is None
 
@@ -146,7 +159,8 @@ def test_the_app_avoids_retracted_phrasing(pattern, reason):
 def test_the_demo_imports_only_what_its_own_requirements_install():
     """Streamlit Cloud installs demo/requirements.txt, not the project's: no sklearn, lightgbm,
     shap, or project module may be imported by the deployed files."""
-    allowed = {"__future__", "datetime", "pathlib", "re", "sys", "streamlit", "pandas", "triage"}
+    allowed = {"__future__", "datetime", "importlib", "pathlib", "re", "sys", "streamlit", "pandas",
+               "triage"}
     for name in ("app.py", "triage.py"):
         tree = ast.parse((APP.parent / name).read_text(encoding="utf-8"))
         mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
