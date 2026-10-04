@@ -147,6 +147,9 @@ link, when it opened, what happened, and for both models the score, its rank amo
 repo's other replayed PRs, and the top drivers. Input that isn't a replayed PR gets a message
 saying what the replay covers. Titles and drivers are Markdown-escaped.
 
+**Restructured 2026-10-04:** the app is now a six-chapter walkthrough; see
+`docs/design/specs/2026-10-04-demo-story-design.md`.
+
 **Empty list.** When no PR is awaiting review at the moment, a message says so. On early
 January days it adds that only PRs opened from 2026-01-01 have scores.
 
