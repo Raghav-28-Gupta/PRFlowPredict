@@ -37,7 +37,7 @@ exactly as before.
 | New data | **Small derived files** built offline from committed sources, each with a rebuild-and-compare test |
 | Undocumented problems | **Disclose both now** (CI bot counted as a reviewer; star-sorted candidate pools); the bot fix is a later, separate phase |
 | Build approach | **Second `st.navigation` section** with five file pages, three new modules, its own stage stepper, and one stage link per story chapter |
-| Interaction | Presenter-driven clicks: Altair `selection_point` with `on_select`, segmented controls, a select slider. No auto-play; none of the light-only `figures/*.png` |
+| Interaction | Presenter-driven clicks: Altair `selection_point` with `on_select`, segmented controls, a select slider. Widget choices persist for the session (`persist_state="session"`), so a presenter can leave a page and come back to it. No auto-play; none of the light-only `figures/*.png` |
 | Bot disclosure numbers | **Committed numbers only**: the two repos' D5 slow rates from `data/cohort/kept.json`. The 525-label measurement (from gitignored data) is not shown |
 
 ## 3. Artifacts
@@ -47,7 +47,7 @@ exactly as before.
 | `demo/workflow.py` | **new**: loads committed files, derives every table the section shows. pandas only, no Streamlit |
 | `demo/workflow_charts.py` | **new**: Altair charts for the section, reusing `charts.PALETTE` and `charts.NEUTRAL` |
 | `demo/stages.py` | **new**: the five page functions, the stage stepper and the section's speaker notes |
-| `demo/views/{pipeline,funnel,known_at_t,test_designs,checks}.py` | **new**: two-line page files, as for the story |
+| `demo/views/{pipeline,funnel,known_at_t,designs,checks}.py` | **new**: two-line page files, as for the story (no `test_*.py` names, which pytest would collect) |
 | `demo/app.py` | sectioned navigation, cached workflow bundle, reload list, sidebar caption |
 | `demo/chapters.py` | `Context` gains `wf` and `wf_pages`; one stage link per chapter; two bullets in *Honest limits* |
 | `build_workflow_data.py` | **new**: writes the two derived files below from committed sources |
@@ -121,9 +121,12 @@ Pure functions; no Streamlit. The app caches one bundle of their results (`st.ca
 
 - **`STAGES`**: six stages in order, keys `collect`, `label`, `features`, `evaluate`, `explain`,
   `ship`. Each has a title, a short number-free description, its artifacts as
-  `(path, committed, what)`, its gate source, its doc link, its deep-dive page (if any) and the
-  story chapter that uses it. `committed` is a static flag; a test checks it against
+  `(path, committed, what)`, its gate source, its doc link, its deep-dive page's url_path (if
+  any) and the index of the story chapter that uses it (an index, because Streamlit gives the
+  default page an empty url_path). `committed` is a static flag; a test checks it against
   `git ls-files`. Phase 5 (survival model) is recorded as not built.
+- **`picked(event, param, field=None)`**: the first point of a chart selection, or None; every
+  page guards a selection against stale or unknown ids with it.
 - **`badges(bundle) -> dict[str, str]`**: one headline per stage, computed at runtime: repos
   selected from candidates pooled; labelled PRs; model features; runs; worst errors read; PRs in
   this demo.
@@ -132,12 +135,15 @@ Pure functions; no Streamlit. The app caches one bundle of their results (`st.ca
   dicts readably.
 - **`repo_funnel()`, `pr_funnel() -> pd.DataFrame`**: one row per step with count, source file and
   reason. `removed_at(step) -> pd.DataFrame` lists what a step removed, with reasons from
-  `cohort.json` `rejected[]` and `kept.json` `repos[].reasons`.
+  `cohort.json` `rejected[]` and `kept.json` `repos[].reasons`, or a sentence where nothing
+  can be listed.
 - **`pool_bias() -> pd.DataFrame`**: per cell, the cell's size, the pool's size and star range,
   and the pool's share of the cell, from the raw search responses.
 - **`label_rates() -> dict`**: global D5 slow rate (Phase 2 gate check 2), global D3 rate
   (row-weighted from `kept.json`), and the D5 rates of `kubernetes/autoscaler` and
-  `kubernetes-sigs/gateway-api-inference-extension`.
+  `kubernetes-sigs/gateway-api-inference-extension`. `bot_note(labels)` and `pool_note(pool)`
+  build the two disclosure sentences (§8) from these numbers, so every place that shows one shows
+  the same words.
 - **Replay** (known at time t):
   - `prior(prs) -> float`: the shrinkage prior, read from rows with `x__trailing_n == 0`.
   - `replay_at(prs, repo, pr_id, rule) -> (frame, summary)`: the repo's PRs opened before the
@@ -146,17 +152,25 @@ Pure functions; no Streamlit. The app caches one bundle of their results (`st.ca
     t) or `naive` (every earlier PR in the window). `summary` gives k, slow count, the shrunk rate
     `(slow + ALPHA·prior) / (k + ALPHA)` and, for `resolvable`, whether it equals the stored
     `x__trailing_90d_slow_rate` and `x__trailing_n`.
-  - `exact_repos(prs) -> list[str]`: repos where the recomputation equals the stored feature on
-    every PR. Vectorised with pandas (`searchsorted`, `cumsum`), no numpy import.
+  - `trailing_check(prs)` re-derives every PR's rate at once (pandas `searchsorted` and running
+    sums, no numpy import); `exact_repos(check) -> list[str]` lists the repos where it equals the
+    stored feature on every PR.
+  - `default_pr(check, repo)`: the repo's PR with the most earlier PRs whose outcome was not yet
+    knowable (earliest on a tie), the moment the 7-day rule matters most.
 - **`split_rows() -> pd.DataFrame`**: per repo, pre-2026 rows (`n_B − n_A`), rows kept by the cap,
   2026 test rows, and the Scenario B fold that holds it out. `cap(rows_by_repo) -> pd.Series`
-  applies `min(n, max(1, int(CAP_FRAC · total)))`; it reproduces all six stored `n_train` values.
+  applies `min(n, max(1, int(CAP_FRAC · total)))`. `design_rows(rows, fold=None)` splits each
+  repo into *trained on*, *dropped by the cap* and *tested on* for Scenario A (no fold) or one
+  Scenario B fold; it reproduces all six stored `n_train` and `n_test` values.
 - **`fold_results() -> pd.DataFrame`**: per Scenario B fold, repos held out, `n_train`, `n_test`,
   base rate, and AUC-PR for FULL, NO_LABEL_REPLAY and the baseline.
 - **`verdict_6b() -> str`**: the backticked verdict in `README.md`, which must be exactly one
   distinct member of `VERDICT_NAMES` (the claims test already pins README's verdict to its
   recomputation).
-- **`top_drivers(n=3) -> pd.DataFrame`**: from `phase6_importance_A.csv`.
+- **`bundle(prs) -> dict`**: everything the section shows, built once and cached by the app.
+
+The Explain panel's top drivers reuse `triage.importance` (the story's own reader of
+`phase6_importance_A.csv`).
 
 ## 6. Charts (`demo/workflow_charts.py`)
 
@@ -164,13 +178,14 @@ Pure functions from `workflow.py`'s frames to Altair charts, each taking `mode`:
 
 - `pipeline_map(stages, selected, mode)`: six rect nodes left to right with title, badge and gate
   chip, arrows between them; `selection_point` named `stage` on field `key`.
-- `funnel(steps, mode, log)`: horizontal step bars labelled with count and reason;
-  `selection_point` named `step`.
+- `funnel(steps, unit, mode, log)`: horizontal step bars labelled with count (reason and source
+  in the tooltip); on a log scale the bars start at 1; `selection_point` named `step`.
 - `replay_strip(frame, t, mode)`: one dot per earlier PR on a time axis, coloured by status, with
   rules at t−90d, t−168h and t. `trailing_line(prs_repo, t, prior, mode)`: the stored trailing
   rate as a step line, a cursor at t and a dashed prior line. Both share the time domain.
-- `split_bars(rows, scenario, fold, mode, log)` and `fold_dots(folds, fold, mode)` (each fold's
-  three AUC-PRs, the chosen fold emphasised, a base-rate floor tick per fold).
+- `split_bars(long, order, mode)` (each repo's rows stacked: trained on, dropped by the cap,
+  tested on) and `fold_dots(folds, fold, mode)` (each fold's three AUC-PRs, the chosen fold
+  emphasised, a base-rate floor tick per fold).
 - `gate_tiles(gates, mode)`: one tile per check, rows by phase; `selection_point` named `check`.
 
 Colours come from `charts.PALETTE` roles where one fits (blue for counted/pass, `NEUTRAL` for
@@ -191,8 +206,9 @@ contrast on both `#fcfcfb` and `#1a1a19`, checked by a test. Orange keeps its st
 - `app.py` reloads `workflow`, `workflow_charts` and `stages` every run, dependencies first.
 - The sidebar gains one caption under Model and Repo: they drive chapters 2–4.
 - Each workflow page: `st.title` heading, its visual, its speaker note when the toggle is on, and
-  a stepper (`← Previous stage` / `Next stage →`, keys per page; the hub has no Previous, Validity
-  checks has no Next).
+  a stepper (`← Previous stage` / `Next stage →`; each page finds its position from its own
+  url_path, keys per position; the hub has no Previous, Validity checks has no Next). A link to a
+  page the app does not register is skipped.
 
 ### 7.2 Stage links from the story
 
@@ -247,20 +263,21 @@ pool-bias disclosure (§8) sits on this page with `pool_bias()`'s table in an ex
    readout shows k, the slow count, the formula with its numbers, and "matches the stored
    feature". A toggle switches to the naive rule and shows how many more PRs it would count and
    the rate it would give, labelled as a counterfactual the demo computes, not a project result.
-   The default PR is the first whose window holds at least one `outcome not yet knowable` PR.
+   The default PR is `default_pr`'s: the one with the most `outcome not yet knowable` PRs.
 3. Caption: only the trailing slow rate is re-derived here; backlog and author-history features
    cannot be rebuilt from the extract (bot PRs and author identities are not in it).
 
 ### 7.6 Two test designs
 
-A segmented control: **Seen in training (time cut)** / **Unseen repo (repo folds)**, a log-scale
-toggle, and KPI metrics (`n_train`, `n_test`, repos).
+A segmented control: **Seen in training (time cut)** / **Unseen repo (repo folds)**, and KPI
+metrics (`n_train`, `n_test`, repos).
 
 - **Seen**: one bar per repo split into *trained on*, *dropped by the cap* and *2026 test*.
   `kdlbs/kandev` has no pre-2026 rows.
-- **Unseen**: one bar per repo coloured by its fold; a fold picker (1–5) emphasises one fold, and
-  `fold_dots` shows that fold's AUC-PR for the model, the model without the four slow-rate
-  history features, and the baseline, against the fold's base-rate floor.
+- **Unseen**: a fold picker (1–5); the chosen fold's repos are *tested on* whole and every other
+  repo is *trained on* (capped, the rest *dropped by the cap*), and `fold_dots` shows that
+  fold's AUC-PR for the model, the model without the four slow-rate history features, and the
+  baseline, against the fold's base-rate floor.
 - Notes: per-repo counts come from a Phase 6b output file; tuning used Scenario A's training
   rows, which include the held-out repos' pre-2026 rows; the story's Unseen switch shows only
   2026 rows while fold results cover all 30 months; compare scenarios with AUC-PR, not P@10.
