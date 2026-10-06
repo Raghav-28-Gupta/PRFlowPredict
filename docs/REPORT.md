@@ -207,6 +207,16 @@ actual slow rate) and the repeat-contributor gap, within the same repos.
   from 0.507 to 0.965.
 - **Snapshot repo attributes.** Maintainer counts, CODEOWNERS and similar features are 2026
   snapshots applied to PRs from 2024 onward, and star tiers are defined by 2026 star counts.
+- **A CI bot counts as a reviewer.** Kubernetes' `k8s-ci-robot` account is registered on GitHub as
+  an ordinary user, not a bot, so the D5 label counts its automated comments as first reviews. It
+  supplies most first reviews in kubernetes/autoscaler and
+  kubernetes-sigs/gateway-api-inference-extension, so their slow rates
+  (3.1% and 0.7% under D5) understate how long people took. Fixing it means relabelling and
+  re-running every later phase; the results here use the label as built.
+- **Candidate pools are each group's most-starred repos.** The searches returned each language ×
+  star-tier group's matches sorted by stars, and the candidate pool took
+  each group's 200 most-starred matches, between 1.3% and 20.6% of the group. The seeded random
+  draw therefore chose among the most-starred repos of each group, not across its whole star range.
 - **What was tried.** All 36 runs are logged in [data/experiments.csv](../data/experiments.csv),
   including the ablations that did not help: dropping snapshot features changed little
   anywhere, and PR-level features alone fall far below the baseline in both scenarios.

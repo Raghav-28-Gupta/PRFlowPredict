@@ -688,3 +688,26 @@ def test_each_stage_with_a_deep_dive_links_to_it(key):
     at = _at("pipeline")
     at.segmented_control(key="wf_stage").set_value(key).run()
     assert workflow.stage(key).page in [link.proto.page for link in at.get("page_link")]
+
+
+@pytest.mark.parametrize("chapter,key,heading,stage", [
+    ("problem", "problem", "How it was built", "label"),
+    ("watch", "watch", "Known at time t", None),
+    ("why", "why", "How it was built", "explain"),
+    ("test_yourself", "test", "Two test designs", None),
+    ("transfer", "transfer", "Two test designs", None),
+    ("limits", "limits", "Validity checks", None),
+])
+def test_each_chapters_stage_link_opens_how_it_was_built(chapter, key, heading, stage):
+    at = _at(chapter)
+    at.button(key=f"stage_{key}").click().run()
+    assert not at.exception and at.title[0].value == heading
+    if stage:
+        assert at.session_state["wf_stage"] == stage
+        assert any(s.value.startswith(f"{workflow.STAGE_KEYS.index(stage) + 1}.") for s in at.subheader)
+
+
+def test_honest_limits_discloses_the_ci_bot_and_the_star_sorted_pools():
+    text = _text(_at("limits"))
+    assert workflow.bot_note(workflow.label_rates()) in text
+    assert workflow.pool_note(workflow.pool_bias()) in text

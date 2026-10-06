@@ -16,6 +16,7 @@ import streamlit as st
 
 import charts
 import triage
+import workflow
 
 GITHUB = "https://github.com/Raghav-28-Gupta/PRFlowPredict"
 README, REPORT = f"{GITHUB}#readme", f"{GITHUB}/blob/main/docs/REPORT.md"
@@ -48,6 +49,15 @@ NOTES = {
                 "without it, it falls below. Then flip the sidebar switch to Unseen repo.",
     "limits": "Close on what was not measured. This is what makes the rest credible.",
 }
+# chapter -> (its pipeline stage, the "How it was built" page that shows it, the hub stage to open)
+STAGE_LINKS = {
+    "problem": ("Label", "pipeline", "label"),
+    "watch": ("Features", "known-at-time-t", None),
+    "why": ("Explain", "pipeline", "explain"),
+    "test": ("Train & test", "test-designs", None),
+    "transfer": ("Train & test", "test-designs", None),
+    "limits": ("all six stages", "validity-checks", None),
+}
 
 
 @dataclass
@@ -73,6 +83,18 @@ def _c() -> Context:
 def _note(key: str) -> None:
     if _c().notes:
         st.info(f"**Speaker note:** {NOTES[key]}")
+
+
+def _stage(key: str) -> None:
+    """One line under a chapter's title: its pipeline stage, and a jump to how it was built. The hub
+    stage travels in a plain session key, which the hub copies into its stage picker."""
+    name, url, stage = STAGE_LINKS[key]
+    text, go = st.columns([4, 1], vertical_alignment="center")
+    text.markdown(f"Pipeline stage: **{name}**")
+    if go.button("How it was built →", key=f"stage_{key}"):
+        if stage:
+            st.session_state["wf_focus"] = stage
+        st.switch_page(next(p for p in _c().wf_pages if p.url_path == url))
 
 
 def _nav(i: int) -> None:
@@ -101,6 +123,7 @@ def _chart(chart, **kwargs):
 def problem() -> None:
     c = _c()
     st.title("Some pull requests wait weeks for a first review")
+    _stage("problem")
     buckets = triage.wait_buckets(c.prs)
     s = triage.wait_summary(c.prs)
     st.markdown(
@@ -160,6 +183,7 @@ def _triage_list(day) -> None:
 def watch() -> None:
     c = _c()
     st.title("Watch it work")
+    _stage("watch")
     st.markdown(
         "A replay of the 2026 test period PRFlowPredict was evaluated on, not live data. Each dot "
         f"is one pull request in **{c.repo}**, placed by the day it opened and the risk score the "
@@ -236,6 +260,7 @@ def _card(pr: pd.DataFrame) -> None:
 def why() -> None:
     c = _c()
     st.title("Why it decides")
+    _stage("why")
     st.markdown(
         "Pick any replayed PR: paste its GitHub link, type `owner/repo#123` or a number in the repo "
         "chosen in the sidebar, click a dot in *Watch it work*, or let **Random PR** pick one.")
@@ -310,6 +335,7 @@ def _deal_again() -> None:
 def test_yourself() -> None:
     c = _c()
     st.title("Test yourself")
+    _stage("test")
     st.markdown(
         "Four pull requests opened in the same project in the same week. **Exactly one of them "
         "stalled**: no first review within 7 days. Each card shows the title (as of data collection) "
@@ -370,6 +396,7 @@ def test_yourself() -> None:
 def transfer() -> None:
     c = _c()
     st.title("Does it transfer to a new project?")
+    _stage("transfer")
     t = c.results["text"]
     st.markdown(
         "**Within a project, it works.** On repos it was trained on, the model's precision on each "
@@ -395,6 +422,7 @@ def transfer() -> None:
 def limits() -> None:
     c = _c()
     st.title("Honest limits")
+    _stage("limits")
     st.markdown(
         "- **The cold-start bar was never measured.** The project plan set a C-index target for a "
         "survival model on unseen repos; that phase was not built.\n"
@@ -403,7 +431,9 @@ def limits() -> None:
         "- **Repo attributes are 2026 snapshots** (maintainer counts, CODEOWNERS and the like), "
         "applied to earlier PRs.\n"
         "- **A list of PRs still waiting cannot measure ranking.** Most of them go on to stall; the "
-        "ranking is measured when PRs open, over every test PR.")
+        "ranking is measured when PRs open, over every test PR.\n"
+        f"- {workflow.bot_note(c.wf['labels'])}\n"
+        f"- {workflow.pool_note(c.wf['pool_bias'])}")
     st.markdown(f"Everything here is in the [README]({README}) and the [report]({REPORT}), where a "
                 "test checks every number against the committed data.")
     _note("limits")
