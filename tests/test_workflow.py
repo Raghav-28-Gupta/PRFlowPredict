@@ -102,7 +102,7 @@ def test_gate_lines_count_each_stages_checks():
     table = wf.gates()
     assert wf.gate_line(("0",), table) == "pilot gate: 10 checks"
     assert wf.gate_line(("6", "6b"), table) == "10/10 checks pass"
-    assert wf.gate_line((), table) == "claims tests"
+    assert wf.gate_line((), table) == "no gate"
 
 
 def test_audits_and_the_live_mismatch_come_from_the_phase3_files():
@@ -181,6 +181,9 @@ def test_the_disclosures_cite_runtime_numbers():
     rates = wf.label_rates()["bot_repos"]
     a, b = (rates[r] for r in wf.BOT_REPOS)
     assert f"({a:.1%} and {b:.1%})" in wf.bot_note(wf.label_rates())
+    note = wf.bot_note(wf.label_rates())
+    assert "not on the project's list of known bots" in note
+    assert f"in {wf.BOT_REPOS[0]} and {wf.BOT_REPOS[1]}," in note and "{" not in note
     pool = wf.pool_bias()
     note = wf.pool_note(pool)
     assert f"between {pool['share'].min():.1%} and {pool['share'].max():.1%} of the group" in note

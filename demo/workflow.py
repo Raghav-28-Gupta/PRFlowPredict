@@ -182,7 +182,7 @@ def gate_value_text(value) -> str:
 
 def gate_line(phases: tuple[str, ...], table: pd.DataFrame) -> str:
     if not phases:
-        return "claims tests"
+        return "no gate"
     if phases == ("0",):
         return f"pilot gate: {int((table['phase'] == '0').sum())} checks"
     rows = table[table["phase"].isin(phases)]
@@ -321,9 +321,9 @@ def bot_note(labels: dict) -> str:
     """The CI-bot disclosure (workflow-view spec, section 8), with the two repos' D5 rates."""
     a, b = (labels["bot_repos"][r] for r in BOT_REPOS)
     return ("**A CI bot counts as a reviewer.** Kubernetes' `k8s-ci-robot` account is registered on "
-            "GitHub as an ordinary user, not a bot, so the label counts its automated comments as first "
-            f"reviews. It supplies most first reviews in {BOT_REPOS[0]} and {BOT_REPOS[1]}, so their "
-            f"slow rates under D5 ({a:.1%} and {b:.1%}) understate how long people took. Fixing it means "
+            "GitHub as an ordinary user, not a bot, and is not on the project's list of known bots, so the "
+            "label counts its automated comments as first reviews. It supplies most first reviews in "
+            f"{BOT_REPOS[0]} and {BOT_REPOS[1]}, so their slow rates under D5 ({a:.1%} and {b:.1%}) understate how long people took. Fixing it means "
             "relabelling and re-running every later phase.")
 
 

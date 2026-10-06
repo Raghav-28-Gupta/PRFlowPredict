@@ -371,6 +371,7 @@ REQUIRED_PHRASES: tuple[tuple[str, str], ...] = (
     (README, "python baseline.py"),
     (REPORT, "python baseline.py"),
     (REPORT, "rewrites `data/phase3_gate.json`"),
+    (REPORT, "not on the project's list of known bots"),
 )
 FORBIDDEN_PATTERNS: tuple[str, ...] = (
     r"fingerprinting (is|was) (supported|confirmed)",

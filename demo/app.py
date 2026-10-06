@@ -42,12 +42,15 @@ def _data():
 
 
 @st.cache_data
-def _workflow(_prs):
-    return workflow.bundle(_prs)          # the leading underscore: Streamlit does not hash the frame
+def _workflow(_prs, source):
+    """The leading underscore: Streamlit does not hash the frame. `source` is workflow.py's text:
+    the cache keys a function on its own source only, so without it a changed workflow.py could be
+    served an old bundle by a process Streamlit Cloud kept alive across the update."""
+    return workflow.bundle(_prs)
 
 
 prs, features, results, hit_rates = _data()
-wf = _workflow(prs)
+wf = _workflow(prs, Path(workflow.__file__).read_text(encoding="utf-8"))
 repo_names = triage.repos(prs)
 start = triage.default_repo(prs, triage.moment(triage.DEFAULT_DAY))
 

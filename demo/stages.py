@@ -62,8 +62,8 @@ def _stepper(url_path: str) -> None:
 # the pipeline map
 # ---------------------------------------------------------------------------
 
-def _on_stage_click() -> None:
-    key = workflow.picked(st.session_state.get("pipeline_map"), "stage", "key")
+def _on_stage_click(chart_key: str) -> None:
+    key = workflow.picked(st.session_state.get(chart_key), "stage", "key")
     if key in workflow.STAGE_KEYS:      # the browser can re-send a stale selection: ignore one we don't know
         st.session_state["wf_stage"] = key
 
@@ -72,7 +72,7 @@ def _collect(c) -> None:
     f = c.wf["repo_funnel"].set_index("step")["count"]
     st.markdown(f"{f['matched the searches']:,} repos matched the nine searches; {f['pooled as candidates']:,} "
                 f"were pooled, {f['selected']} drawn and {f['kept']} kept after QC. The pilot gate ran on two "
-                "repos before any of it.")
+                "repos before the full collection.")
 
 
 def _label(c) -> None:
@@ -140,13 +140,17 @@ def hub() -> None:
     c = _c()
     st.title("How it was built")
     st.markdown("Six stages took PRFlowPredict from a search of GitHub to the model in this demo, and "
-                "each recorded its checks before its results were read. Click a stage, or pick it below.")
+                "each gated stage recorded its checks before its results were read. Click a stage, or pick "
+                "it below.")
     if "wf_focus" in st.session_state:          # a story chapter asked for this stage
         st.session_state["wf_stage"] = st.session_state.pop("wf_focus")
     st.session_state.setdefault("wf_stage", workflow.STAGE_KEYS[0])
     stages = c.wf["stages"]
-    _chart(wc.pipeline_map(stages, st.session_state["wf_stage"], c.mode), on_select=_on_stage_click,
-           key="pipeline_map")
+    # one chart per stage: the browser sends a selection only when it changes, so a single chart
+    # would ignore a click on the box it last selected after the picker had moved elsewhere
+    chart_key = f"pipeline_map_{st.session_state['wf_stage']}"
+    _chart(wc.pipeline_map(stages, st.session_state["wf_stage"], c.mode),
+           on_select=lambda: _on_stage_click(chart_key), key=chart_key)
     titles = dict(zip(stages["key"], stages["title"]))
     key = st.segmented_control("Stage", workflow.STAGE_KEYS, format_func=titles.get, key="wf_stage",
                                required=True, persist_state="session", label_visibility="collapsed")

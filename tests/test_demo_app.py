@@ -534,11 +534,37 @@ def test_every_stage_panel_renders_with_its_links(key):
 
 def test_clicking_a_stage_box_opens_its_panel_and_an_unknown_one_is_ignored():
     at = _at("pipeline")
-    _run_with_selection(at, "pipeline_map", {"stage": [{"key": "explain"}]})
+    _run_with_selection(at, "pipeline_map_collect", {"stage": [{"key": "explain"}]})
     assert not at.exception and at.session_state["wf_stage"] == "explain"
     assert f"`{workflow.verdict_6b()}`" in _text(at)
-    _run_with_selection(at, "pipeline_map", {"stage": [{"key": "no-such-stage"}]})
+    _run_with_selection(at, "pipeline_map_explain", {"stage": [{"key": "no-such-stage"}]})
     assert not at.exception and at.session_state["wf_stage"] == "explain"
+
+
+def test_the_map_is_a_fresh_chart_for_each_stage():
+    """The browser sends a chart selection only when it changes, so one chart kept across stages
+    could not reopen a box after the picker moved away from it: each stage draws its own chart."""
+    at = _at("pipeline")
+    assert _chart_id(at, "pipeline_map_collect")
+    at.segmented_control(key="wf_stage").set_value("label").run()
+    assert _chart_id(at, "pipeline_map_label")
+
+
+def test_the_hub_claims_pre_registered_checks_only_for_gated_stages():
+    text = _text(_at("pipeline"))
+    assert "each gated stage recorded its checks before its results were read" in text
+
+
+def test_the_collect_panel_puts_the_pilot_gate_before_the_full_collection():
+    text = _text(_at("pipeline"))
+    assert "before the full collection" in text and "before any of it" not in text
+
+
+def test_the_cached_bundle_is_rebuilt_when_workflow_py_changes():
+    """st.cache_data keys a function on its own source only, and Streamlit Cloud keeps the
+    process across updates (the bug PR #11 fixed for modules), so the bundle is also keyed on
+    workflow.py's source."""
+    assert re.search(r"_workflow\(prs, Path\(workflow\.__file__\)\.read_text\(", APP.read_text(encoding="utf-8"))
 
 
 def test_the_label_panel_discloses_the_ci_bot():
