@@ -153,3 +153,93 @@ def hub() -> None:
     _panel(workflow.stage(key))
     _note("pipeline")
     _stepper("pipeline")
+
+
+# ---------------------------------------------------------------------------
+# data funnel
+# ---------------------------------------------------------------------------
+
+def _removed(event, steps: pd.DataFrame) -> None:
+    step = workflow.picked(event, "step", "step")
+    if step not in set(steps["step"]):
+        st.caption("Click a step to see what it removed.")
+        return
+    frame, note = workflow.removed(step)
+    st.markdown(f"**{step}:** {note}")
+    if len(frame):
+        st.dataframe(frame, hide_index=True, width="stretch")
+
+
+def funnel() -> None:
+    c, wf = _c(), _c().wf
+    st.title("Data funnel")
+    st.markdown("From every repo GitHub's searches matched to the pull requests this demo replays. "
+                "Hover a step for its source file; click it to see what it removed and why.")
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Repos")
+        event = _chart(wc.funnel(wf["repo_funnel"], "repos", c.mode, log=True), on_select="rerun",
+                       key="repo_funnel")
+        _removed(event, wf["repo_funnel"])
+    with right:
+        st.subheader("Pull requests")
+        event = _chart(wc.funnel(wf["pr_funnel"], "pull requests", c.mode), on_select="rerun", key="pr_funnel")
+        _removed(event, wf["pr_funnel"])
+    st.caption(f"Training rows are capped at {workflow.CAP_FRAC:.0%} of all training rows per repo and test "
+               "rows are not, so training rows and test PRs add up to fewer than the modelled PRs. QC rules "
+               "are structural: bot share, human PR count and language.")
+    st.info(workflow.pool_note(wf["pool_bias"]))
+    with st.expander("Each group's search and pool"):
+        st.dataframe(wf["pool_bias"], hide_index=True, width="stretch",
+                     column_config={"share": st.column_config.NumberColumn("pool share of group", format="percent")})
+    _data(pd.concat([wf["repo_funnel"].assign(unit="repos"), wf["pr_funnel"].assign(unit="pull requests")]),
+          "Data behind the funnels")
+    _note("funnel")
+    _stepper("data-funnel")
+
+
+# ---------------------------------------------------------------------------
+# validity checks
+# ---------------------------------------------------------------------------
+
+def _tile_note(phase: str, check: int, wf: dict) -> str | None:
+    if (phase, check) == ("2", 4):
+        return "This check passes exactly at its threshold."
+    if (phase, check) == ("3", 5) and wf["live"]:
+        m = wf["live"][0]
+        return (f"One live value differed at first: {m['pr']} {m['field']} read {m['live']} in GitHub's "
+                f"search against {m['ours']} here, and the REST API confirmed this project's value.")
+    return None
+
+
+def _show_check(row: pd.Series, wf: dict) -> None:
+    st.markdown(f"**{workflow.PHASE_NAMES[row['phase']]}, check {row['id']}:** {row['check']}")
+    st.markdown(f"Status: **{row['status']}** · recorded: {workflow.gate_value_text(row['value'])}")
+    note = _tile_note(row["phase"], int(row["id"]), wf)
+    if note:
+        st.markdown(note)
+    with st.expander("Recorded value, raw"):
+        if isinstance(row["value"], (dict, list)):
+            st.json(row["value"])
+        else:
+            st.code(str(row["value"]), language=None)
+
+
+def checks() -> None:
+    c, wf = _c(), _c().wf
+    st.title("Validity checks")
+    st.markdown("**Validity, not success.** Each phase wrote down its checks before its results were "
+                "read. They test that the pipeline did what it claims: rows conserved, no label in any "
+                "feature, refits reproducing, attributions adding up. They do not say the model is good. "
+                "Click a tile to read one.")
+    g = wf["gates"]
+    event = _chart(wc.gate_tiles(g, c.mode), on_select="rerun", key="gate_tiles")
+    hit = workflow.picked(event, "check")
+    row = g[(g["phase"] == str(hit.get("phase"))) & (g["id"] == hit.get("id"))] if hit else g.iloc[0:0]
+    if len(row):                    # a stale selection from another page's data finds no row
+        _show_check(row.iloc[0], wf)
+    st.caption("Phase 1, the collection, has no gate file: the pilot gate tested its machinery first. "
+               "Phase 5, a survival model, was not built.")
+    _data(g.assign(value=g["value"].map(workflow.gate_value_text)), "Every check")
+    _note("checks")
+    _stepper("validity-checks")

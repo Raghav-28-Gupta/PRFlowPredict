@@ -554,3 +554,45 @@ def test_the_workflow_modules_are_reloaded_too(monkeypatch):
         monkeypatch.delattr(importlib.import_module(name), attr)
     at = _at("pipeline")
     assert not at.exception and at.title[0].value == WF_HEADINGS[0]
+
+
+def test_a_funnel_click_lists_what_the_step_removed():
+    at = _at("funnel")
+    dropped, note = workflow.removed("kept")
+    assert note not in _text(at)
+    _run_with_selection(at, "repo_funnel", {"step": [{"step": "kept"}]})
+    assert not at.exception
+    assert note in _text(at)
+    assert any(d.value["repo"].tolist() == dropped["repo"].tolist() for d in at.dataframe if "repo" in d.value)
+
+
+def test_a_selection_naming_the_other_funnels_step_is_ignored():
+    at = _at("funnel")
+    _run_with_selection(at, "repo_funnel", {"step": [{"step": "human-authored"}]})
+    assert not at.exception and "**human-authored:**" not in _text(at)
+
+
+def test_the_funnel_page_discloses_the_star_sorted_pools():
+    assert workflow.pool_note(workflow.pool_bias()) in [i.value for i in _at("funnel").info]
+
+
+@pytest.mark.parametrize("phase,check_id,phrase", [
+    ("2", 4, "passes exactly at its threshold"),
+    ("3", 5, "the REST API confirmed this project's value"),
+    ("0", 4, "expectation missed, not a stop"),
+])
+def test_clicking_a_check_tile_shows_the_check(phase, check_id, phrase):
+    at = _at("checks")
+    _run_with_selection(at, "gate_tiles", {"check": [{"phase": phase, "id": check_id}]})
+    assert not at.exception and phrase in _text(at)
+
+
+def test_a_tile_selection_for_no_such_check_shows_nothing():
+    at = _at("checks")
+    _run_with_selection(at, "gate_tiles", {"check": [{"phase": "2", "id": 9}]})
+    assert not at.exception and "check 9" not in _text(at)
+
+
+def test_the_checks_page_frames_validity_not_success():
+    text = _text(_at("checks"))
+    assert "**Validity, not success.**" in text and "They do not say the model is good" in text
