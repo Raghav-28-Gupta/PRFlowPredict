@@ -243,3 +243,131 @@ def checks() -> None:
     _data(g.assign(value=g["value"].map(workflow.gate_value_text)), "Every check")
     _note("checks")
     _stepper("validity-checks")
+
+
+# ---------------------------------------------------------------------------
+# known at time t
+# ---------------------------------------------------------------------------
+
+DEFAULT_REPO = "kdlbs/kandev"
+
+
+def _feature_kinds(c) -> None:
+    labels = {f["feature"]: f["label"] for f in c.features}
+    groups = pd.DataFrame(c.wf["groups"])
+    for col, (g, label) in zip(st.columns(len(workflow.GROUP_LABELS)), workflow.GROUP_LABELS.items()):
+        names = groups.loc[groups["group"] == g, "feature"].map(labels)
+        col.markdown(f"**{label}** ({len(names)})")
+        col.caption(" · ".join(names))
+
+
+def known_at_t() -> None:
+    c, wf = _c(), _c().wf
+    st.title("Known at time t")
+    st.markdown("A score is only useful if it could be computed when the PR opened. Each of the model's "
+                "features is one of four kinds, by when its value is known:")
+    _feature_kinds(c)
+    a = wf["audits"]
+    snapshot = sum(g["group"] == "snapshot" for g in wf["groups"])
+    st.markdown(f"The {snapshot} snapshot features are the stated exception: 2026 values applied to earlier "
+                f"PRs. Two audits check the rest: a brute-force replay of {a['audit_n']} rows matched the "
+                f"stored features with a largest difference of {a['audit_max_diff']:g}, and {a['live_matched']} "
+                f"of {a['live_checks']} values on {a['live_rows']} PRs were confirmed against live GitHub.")
+
+    st.subheader("Replay one repo's history")
+    st.markdown("The trailing 90-day slow rate is both the baseline and one of the model's strongest "
+                "features. When a PR opens at time t, an earlier PR's outcome counts only if it was "
+                "knowable: the PR is at least 7 days old, or it already had its first review. Pick a "
+                "moment and see which earlier PRs count.")
+    exact = wf["exact"]
+    repo = st.selectbox("Repo", exact, index=exact.index(DEFAULT_REPO) if DEFAULT_REPO in exact else 0,
+                        key="kt_repo", persist_state="session")
+    rows = c.prs[c.prs["repo"] == repo].sort_values(["created_at", "pr_id"], kind="mergesort")
+    names = {p: f"#{n} · {d:%d %b %Y %H:%M}" for p, n, d in zip(rows["pr_id"], rows["number"], rows["created_at"])}
+    if st.session_state.get("kt_pr") not in names:          # first visit, or a different repo
+        st.session_state["kt_pr"] = workflow.default_pr(wf["check"], repo)
+    pr_id = st.select_slider("Pull request, by when it opened", options=list(names), format_func=names.get,
+                             key="kt_pr", persist_state="session")
+    naive = st.toggle("Naive rule: count every earlier PR in the window, knowable or not", key="kt_naive",
+                      persist_state="session")
+    frame, s = workflow.replay_at(c.prs, repo, pr_id, "naive" if naive else "resolvable", wf["prior"])
+    domain = (s["t"] - pd.Timedelta(days=workflow.TRAILING_DAYS + 30), s["t"] + pd.Timedelta(days=2))
+    _chart(wc.replay_strip(frame, s["t"], c.mode, domain))
+    near = rows[(rows["created_at"] >= domain[0]) & (rows["created_at"] <= domain[1])]
+    _chart(wc.trailing_line(near, s["t"], s["prior"], c.mode, domain))
+    if naive:
+        st.markdown(f"The naive rule counts **{s['k']}** earlier PRs, **{s['unknown']}** of them with an "
+                    f"outcome nobody could know at t, and gives **{s['rate']:.3f}**; the stored feature is "
+                    f"{s['stored_rate']:.3f}. This is a counterfactual computed here, not a project result.")
+    else:
+        st.markdown(f"At t, PR #{s['number']} opens. **{s['k']}** earlier PRs in the 90-day window had a "
+                    f"knowable outcome and **{s['slow']}** of them stalled; **{s['unknown']}** more opened "
+                    "in the last 7 days without a review yet, so they are left out. Shrunk toward the prior: "
+                    f"({s['slow']} + {workflow.ALPHA:g} × {s['prior']:.3f}) / ({s['k']} + "
+                    f"{workflow.ALPHA:g}) = **{s['rate']:.3f}**.")
+        st.markdown("✓ Matches the stored feature." if s["matches"] else "✗ Differs from the stored feature.")
+    st.caption(f"The repo list holds the {len(exact)} of {len(triage.repos(c.prs))} repos where this page "
+               "re-derives the stored feature exactly on every PR; for the others, the project's replay "
+               "also saw PRs this extract does not hold. Only the trailing slow rate is re-derived here: "
+               "backlog and author-history features need bot PRs and author identities the extract leaves out.")
+    _data(frame, "Data behind the strip")
+    _note("known")
+    _stepper("known-at-time-t")
+
+
+# ---------------------------------------------------------------------------
+# two test designs
+# ---------------------------------------------------------------------------
+
+DESIGNS = {"Seen in training (time cut)": None, "Unseen repo (repo folds)": "B"}
+
+
+def designs() -> None:
+    c, wf = _c(), _c().wf
+    st.title("Two test designs")
+    st.markdown("A model is judged on data it was never shown. PRFlowPredict holds data out in two ways "
+                "and reports both.")
+    st.session_state.setdefault("td_design", next(iter(DESIGNS)))
+    design = st.segmented_control("Test design", list(DESIGNS), key="td_design", required=True,
+                                  persist_state="session")
+    rows, folds = wf["splits"], wf["folds"]
+    order = list(rows["repo"])
+    m = st.columns(3)
+    if DESIGNS[design] is None:
+        a = wf["scenario_a"]
+        m[0].metric("Training rows", f"{a['n_train']:,}")
+        m[1].metric("Test PRs", f"{a['n_test']:,}")
+        m[2].metric("Repos trained on / tested", f"{a['train_repos']} / {a['test_repos']}")
+        st.markdown(f"Each repo's PRs opened before 2026 train the model, capped at {workflow.CAP_FRAC:.0%} "
+                    "of the training rows per repo; its PRs from 2026 test it. The question: how well does it "
+                    "predict the future of projects it knows?")
+        long = workflow.design_rows(rows)
+    else:
+        st.session_state.setdefault("td_fold", 1)
+        number = st.segmented_control("Held-out fold", list(range(1, len(folds) + 1)), key="td_fold",
+                                      format_func=lambda f: f"fold {f}", required=True, persist_state="session")
+        r = folds.set_index("fold").loc[number - 1]
+        m[0].metric("Training rows", f"{int(r['n_train']):,}")
+        m[1].metric("Test PRs", f"{int(r['n_test']):,}")
+        m[2].metric("Repos held out", f"{int(r['repos'])}")
+        st.markdown(f"The repos are split into {len(folds)} folds. Each model trains on every PR of the other "
+                    "folds' repos, capped the same way, and is tested on every PR of its fold's repos, from "
+                    "the whole window. The question: how well does it predict for a project it has never seen?")
+        long = workflow.design_rows(rows, number - 1)
+    _chart(wc.split_bars(long, order, c.mode))
+    if DESIGNS[design] is not None:
+        st.subheader("This fold's results")
+        _chart(wc.fold_dots(folds, number - 1, c.mode))
+        st.caption("AUC-PR starts from the fold's base rate (the tick), not from zero, and the folds' base "
+                   "rates differ widely: compare each dot with its own fold's tick.")
+    st.markdown(
+        "- Per-repo counts come from a Phase 6b output file, `data/phase6b_transfer.csv`; they reproduce "
+        "every stored training count exactly.\n"
+        "- Tuning used the seen-in-training rows, which include the pre-2026 rows of the repos each "
+        "unseen-repo fold later holds out. Its effect was not measured.\n"
+        "- The story's Unseen repo switch shows only 2026 PRs; the fold results cover the whole window.\n"
+        "- Compare the designs with AUC-PR, not precision on the top 10: the unseen-repo test ranks far "
+        "larger pools of PRs per repo.")
+    _data(folds, "Data behind the fold results")
+    _note("designs")
+    _stepper("test-designs")

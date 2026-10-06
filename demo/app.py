@@ -73,6 +73,8 @@ story = [st.Page("views/problem.py", title="1. The problem", url_path="problem",
          st.Page("views/limits.py", title="6. Honest limits", url_path="honest-limits")]
 built = [st.Page("views/pipeline.py", title="Pipeline map", url_path="pipeline"),
          st.Page("views/funnel.py", title="Data funnel", url_path="data-funnel"),
+         st.Page("views/known_at_t.py", title="Known at time t", url_path="known-at-time-t"),
+         st.Page("views/designs.py", title="Two test designs", url_path="test-designs"),
          st.Page("views/checks.py", title="Validity checks", url_path="validity-checks")]
 ctx.pages, ctx.wf_pages = story, built          # Back/Next walk the story; the stepper walks `built`
 st.navigation({"The story": story, "How it was built": built}).run()

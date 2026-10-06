@@ -596,3 +596,95 @@ def test_a_tile_selection_for_no_such_check_shows_nothing():
 def test_the_checks_page_frames_validity_not_success():
     text = _text(_at("checks"))
     assert "**Validity, not success.**" in text and "They do not say the model is good" in text
+
+
+@pytest.mark.parametrize("i", range(5))
+def test_every_workflow_page_renders_with_its_heading(i):
+    at = _at(WF_VIEWS[i])
+    assert not at.exception and at.title[0].value == WF_HEADINGS[i]
+
+
+@pytest.mark.parametrize("i", range(4))
+def test_next_stage_opens_the_following_workflow_page(i):
+    at = _at(WF_VIEWS[i])
+    at.button(key=f"wf_next_{i}").click().run()
+    assert at.title[0].value == WF_HEADINGS[i + 1]
+
+
+@pytest.mark.parametrize("i", range(1, 5))
+def test_previous_stage_opens_the_preceding_workflow_page(i):
+    at = _at(WF_VIEWS[i])
+    at.button(key=f"wf_back_{i}").click().run()
+    assert at.title[0].value == WF_HEADINGS[i - 1]
+
+
+def test_the_hub_has_no_previous_and_the_checks_page_no_next():
+    assert "wf_back_0" not in [b.key for b in _at("pipeline").button]
+    assert "wf_next_4" not in [b.key for b in _at("checks").button]
+
+
+def test_the_scrubber_opens_on_the_default_repo_and_matches_the_stored_feature():
+    at = _at("known_at_t")
+    check = workflow.trailing_check(triage.load())
+    assert at.selectbox(key="kt_repo").value == "kdlbs/kandev"
+    assert at.select_slider(key="kt_pr").value == workflow.default_pr(check, "kdlbs/kandev")
+    assert "✓ Matches the stored feature." in _text(at)
+
+
+def test_the_naive_rule_is_labelled_a_counterfactual():
+    at = _at("known_at_t")
+    at.toggle(key="kt_naive").set_value(True).run()
+    assert not at.exception
+    assert "a counterfactual computed here, not a project result" in _text(at)
+
+
+def test_moving_the_scrubber_and_changing_repo_keep_the_readout_exact():
+    at = _at("known_at_t")
+    prs = triage.load()
+    check = workflow.trailing_check(prs)
+    kandev = prs[prs["repo"] == "kdlbs/kandev"].sort_values(["created_at", "pr_id"])
+    at.select_slider(key="kt_pr").set_value(kandev["pr_id"].iloc[50]).run()
+    assert not at.exception and f"PR #{kandev['number'].iloc[50]} opens" in _text(at)
+    other = next(r for r in workflow.exact_repos(check) if r != "kdlbs/kandev")
+    at.selectbox(key="kt_repo").set_value(other).run()
+    assert not at.exception
+    assert at.select_slider(key="kt_pr").value == workflow.default_pr(check, other)
+    assert "✓ Matches the stored feature." in _text(at)
+
+
+def test_the_test_designs_page_shows_each_folds_counts():
+    at = _at("designs")
+    a = workflow.scenario_a()
+    assert [m.value for m in at.metric][:2] == [f"{a['n_train']:,}", f"{a['n_test']:,}"]
+    at.segmented_control(key="td_design").set_value("Unseen repo (repo folds)").run()
+    at.segmented_control(key="td_fold").set_value(3).run()
+    assert not at.exception
+    r = workflow.fold_results().set_index("fold").loc[2]
+    assert [m.value for m in at.metric] == [f"{int(r['n_train']):,}", f"{int(r['n_test']):,}", f"{int(r['repos'])}"]
+
+
+def test_the_designs_page_states_the_tuning_overlap():
+    assert "Its effect was not measured" in _text(_at("designs"))
+
+
+def test_workflow_choices_survive_a_page_switch():
+    at = _at("designs")
+    at.segmented_control(key="td_design").set_value("Unseen repo (repo folds)").run()
+    at.switch_page("views/pipeline.py").run()
+    at.switch_page("views/designs.py").run()
+    assert at.segmented_control(key="td_design").value == "Unseen repo (repo folds)"
+
+
+def test_workflow_pages_hide_speaker_notes_until_toggled():
+    for view in WF_VIEWS:
+        at = _at(view)
+        assert not [i for i in at.info if i.value.startswith("**Speaker note:**")], view
+        at.sidebar.toggle[0].set_value(True).run()
+        assert [i for i in at.info if i.value.startswith("**Speaker note:**")], view
+
+
+@pytest.mark.parametrize("key", [s.key for s in workflow.STAGES if s.page])
+def test_each_stage_with_a_deep_dive_links_to_it(key):
+    at = _at("pipeline")
+    at.segmented_control(key="wf_stage").set_value(key).run()
+    assert workflow.stage(key).page in [link.proto.page for link in at.get("page_link")]
