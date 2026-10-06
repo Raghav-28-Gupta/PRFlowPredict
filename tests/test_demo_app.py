@@ -14,6 +14,7 @@ from streamlit.testing.v1 import AppTest
 
 import writeup_claims as wc
 from demo import triage
+from demo import workflow
 
 DEMO = Path(__file__).parents[1] / "demo"
 APP = DEMO / "app.py"
@@ -435,7 +436,8 @@ def test_the_demo_imports_only_what_its_own_requirements_install():
     """Streamlit Cloud installs demo/requirements.txt, not the project's: no sklearn, lightgbm,
     shap, or project module may be imported by the deployed files."""
     allowed = {"__future__", "dataclasses", "datetime", "importlib", "json", "math", "pathlib",
-               "random", "re", "sys", "streamlit", "pandas", "altair", "triage", "charts", "chapters"}
+               "random", "re", "sys", "streamlit", "pandas", "altair", "triage", "charts", "chapters",
+               "workflow", "workflow_charts", "stages"}
     for path in SOURCES:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
@@ -474,3 +476,264 @@ def test_why_falls_back_to_the_repos_riskiest_pr_when_nobody_was_waiting():
     at.sidebar.selectbox[0].set_value(quiet).run()
     assert not at.exception
     assert [m.value for m in at.metric] == [f"{top['score_a']:.2f}", f"{top['score_b']:.2f}"]
+
+
+# ---------------------------------------------------------------------------
+# "How it was built" (workflow-view spec, section 7)
+# ---------------------------------------------------------------------------
+
+WF_VIEWS = ["pipeline", "funnel", "known_at_t", "designs", "checks"]
+WF_HEADINGS = ["How it was built", "Data funnel", "Known at time t", "Two test designs", "Validity checks"]
+
+
+def _chart_id(at: AppTest, key: str) -> str:
+    """The element id of the Altair chart drawn with `key`."""
+    def walk(node):
+        yield node
+        children = getattr(node, "children", None)
+        if isinstance(children, dict):
+            for child in children.values():
+                yield from walk(child)
+    return next(n.proto.id for n in walk(at._tree)
+                if type(getattr(n, "proto", None)).__name__ == "VegaLiteChart" and n.proto.id.endswith(f"-{key}"))
+
+
+def _run_with_selection(at: AppTest, key: str, selection: dict) -> AppTest:
+    """Re-run as if the browser sent a chart selection, through AppTest's private API (Streamlit
+    1.65), as _run_with_timeline_click does."""
+    chart = _chart_id(at, key)
+    states = at._tree.get_widget_states()
+    widget = states.widgets.add()
+    widget.id = chart
+    widget.string_value = json.dumps({"selection": selection})
+    at._run(states)
+    return at
+
+
+def test_the_hub_renders_with_its_heading():
+    at = _at("pipeline")
+    assert not at.exception and at.title[0].value == WF_HEADINGS[0]
+
+
+def test_the_stage_picker_opens_a_stages_panel():
+    at = _at("pipeline")
+    assert any(s.value.startswith("1. Collect") for s in at.subheader)
+    at.segmented_control(key="wf_stage").set_value("evaluate").run()
+    assert not at.exception
+    assert any(s.value.startswith("4. Train & test") for s in at.subheader)
+    assert "Not built: the survival model" in " ".join(c.value for c in at.caption)
+
+
+@pytest.mark.parametrize("key", workflow.STAGE_KEYS)
+def test_every_stage_panel_renders_with_its_links(key):
+    at = _at("pipeline")
+    at.segmented_control(key="wf_stage").set_value(key).run()
+    assert not at.exception
+    assert any(s.value.startswith(f"{workflow.STAGE_KEYS.index(key) + 1}.") for s in at.subheader)
+
+
+def test_clicking_a_stage_box_opens_its_panel_and_an_unknown_one_is_ignored():
+    at = _at("pipeline")
+    _run_with_selection(at, "pipeline_map_collect", {"stage": [{"key": "explain"}]})
+    assert not at.exception and at.session_state["wf_stage"] == "explain"
+    assert f"`{workflow.verdict_6b()}`" in _text(at)
+    _run_with_selection(at, "pipeline_map_explain", {"stage": [{"key": "no-such-stage"}]})
+    assert not at.exception and at.session_state["wf_stage"] == "explain"
+
+
+def test_the_map_is_a_fresh_chart_for_each_stage():
+    """The browser sends a chart selection only when it changes, so one chart kept across stages
+    could not reopen a box after the picker moved away from it: each stage draws its own chart."""
+    at = _at("pipeline")
+    assert _chart_id(at, "pipeline_map_collect")
+    at.segmented_control(key="wf_stage").set_value("label").run()
+    assert _chart_id(at, "pipeline_map_label")
+
+
+def test_the_hub_claims_pre_registered_checks_only_for_gated_stages():
+    text = _text(_at("pipeline"))
+    assert "each gated stage recorded its checks before its results were read" in text
+
+
+def test_the_collect_panel_puts_the_pilot_gate_before_the_full_collection():
+    text = _text(_at("pipeline"))
+    assert "before the full collection" in text and "before any of it" not in text
+
+
+def test_the_cached_bundle_is_rebuilt_when_workflow_py_changes():
+    """st.cache_data keys a function on its own source only, and Streamlit Cloud keeps the
+    process across updates (the bug PR #11 fixed for modules), so the bundle is also keyed on
+    workflow.py's source."""
+    assert re.search(r"_workflow\(prs, Path\(workflow\.__file__\)\.read_text\(", APP.read_text(encoding="utf-8"))
+
+
+def test_the_label_panel_discloses_the_ci_bot():
+    at = _at("pipeline")
+    at.segmented_control(key="wf_stage").set_value("label").run()
+    assert workflow.bot_note(workflow.label_rates()) in [i.value for i in at.info]
+
+
+def test_the_workflow_modules_are_reloaded_too(monkeypatch):
+    """The stale-module fix covers the new modules: stale copies must not reach the hub."""
+    monkeypatch.syspath_prepend(str(DEMO))
+    for name, attr in (("workflow", "STAGE_KEYS"), ("workflow_charts", "pipeline_map"), ("stages", "hub")):
+        monkeypatch.delattr(importlib.import_module(name), attr)
+    at = _at("pipeline")
+    assert not at.exception and at.title[0].value == WF_HEADINGS[0]
+
+
+def test_a_funnel_click_lists_what_the_step_removed():
+    at = _at("funnel")
+    dropped, note = workflow.removed("kept")
+    assert note not in _text(at)
+    _run_with_selection(at, "repo_funnel", {"step": [{"step": "kept"}]})
+    assert not at.exception
+    assert note in _text(at)
+    assert any(d.value["repo"].tolist() == dropped["repo"].tolist() for d in at.dataframe if "repo" in d.value)
+
+
+def test_a_selection_naming_the_other_funnels_step_is_ignored():
+    at = _at("funnel")
+    _run_with_selection(at, "repo_funnel", {"step": [{"step": "human-authored"}]})
+    assert not at.exception and "**human-authored:**" not in _text(at)
+
+
+def test_the_funnel_page_discloses_the_star_sorted_pools():
+    assert workflow.pool_note(workflow.pool_bias()) in [i.value for i in _at("funnel").info]
+
+
+@pytest.mark.parametrize("phase,check_id,phrase", [
+    ("2", 4, "passes exactly at its threshold"),
+    ("3", 5, "the REST API confirmed this project's value"),
+    ("0", 4, "expectation missed, not a stop"),
+])
+def test_clicking_a_check_tile_shows_the_check(phase, check_id, phrase):
+    at = _at("checks")
+    _run_with_selection(at, "gate_tiles", {"check": [{"phase": phase, "id": check_id}]})
+    assert not at.exception and phrase in _text(at)
+
+
+def test_a_tile_selection_for_no_such_check_shows_nothing():
+    at = _at("checks")
+    _run_with_selection(at, "gate_tiles", {"check": [{"phase": "2", "id": 9}]})
+    assert not at.exception and "check 9" not in _text(at)
+
+
+def test_the_checks_page_frames_validity_not_success():
+    text = _text(_at("checks"))
+    assert "**Validity, not success.**" in text and "They do not say the model is good" in text
+
+
+@pytest.mark.parametrize("i", range(5))
+def test_every_workflow_page_renders_with_its_heading(i):
+    at = _at(WF_VIEWS[i])
+    assert not at.exception and at.title[0].value == WF_HEADINGS[i]
+
+
+@pytest.mark.parametrize("i", range(4))
+def test_next_stage_opens_the_following_workflow_page(i):
+    at = _at(WF_VIEWS[i])
+    at.button(key=f"wf_next_{i}").click().run()
+    assert at.title[0].value == WF_HEADINGS[i + 1]
+
+
+@pytest.mark.parametrize("i", range(1, 5))
+def test_previous_stage_opens_the_preceding_workflow_page(i):
+    at = _at(WF_VIEWS[i])
+    at.button(key=f"wf_back_{i}").click().run()
+    assert at.title[0].value == WF_HEADINGS[i - 1]
+
+
+def test_the_hub_has_no_previous_and_the_checks_page_no_next():
+    assert "wf_back_0" not in [b.key for b in _at("pipeline").button]
+    assert "wf_next_4" not in [b.key for b in _at("checks").button]
+
+
+def test_the_scrubber_opens_on_the_default_repo_and_matches_the_stored_feature():
+    at = _at("known_at_t")
+    check = workflow.trailing_check(triage.load())
+    assert at.selectbox(key="kt_repo").value == "kdlbs/kandev"
+    assert at.select_slider(key="kt_pr").value == workflow.default_pr(check, "kdlbs/kandev")
+    assert "✓ Matches the stored feature." in _text(at)
+
+
+def test_the_naive_rule_is_labelled_a_counterfactual():
+    at = _at("known_at_t")
+    at.toggle(key="kt_naive").set_value(True).run()
+    assert not at.exception
+    assert "a counterfactual computed here, not a project result" in _text(at)
+
+
+def test_moving_the_scrubber_and_changing_repo_keep_the_readout_exact():
+    at = _at("known_at_t")
+    prs = triage.load()
+    check = workflow.trailing_check(prs)
+    kandev = prs[prs["repo"] == "kdlbs/kandev"].sort_values(["created_at", "pr_id"])
+    at.select_slider(key="kt_pr").set_value(kandev["pr_id"].iloc[50]).run()
+    assert not at.exception and f"PR #{kandev['number'].iloc[50]} opens" in _text(at)
+    other = next(r for r in workflow.exact_repos(check) if r != "kdlbs/kandev")
+    at.selectbox(key="kt_repo").set_value(other).run()
+    assert not at.exception
+    assert at.select_slider(key="kt_pr").value == workflow.default_pr(check, other)
+    assert "✓ Matches the stored feature." in _text(at)
+
+
+def test_the_test_designs_page_shows_each_folds_counts():
+    at = _at("designs")
+    a = workflow.scenario_a()
+    assert [m.value for m in at.metric][:2] == [f"{a['n_train']:,}", f"{a['n_test']:,}"]
+    at.segmented_control(key="td_design").set_value("Unseen repo (repo folds)").run()
+    at.segmented_control(key="td_fold").set_value(3).run()
+    assert not at.exception
+    r = workflow.fold_results().set_index("fold").loc[2]
+    assert [m.value for m in at.metric] == [f"{int(r['n_train']):,}", f"{int(r['n_test']):,}", f"{int(r['repos'])}"]
+
+
+def test_the_designs_page_states_the_tuning_overlap():
+    assert "Its effect was not measured" in _text(_at("designs"))
+
+
+def test_workflow_choices_survive_a_page_switch():
+    at = _at("designs")
+    at.segmented_control(key="td_design").set_value("Unseen repo (repo folds)").run()
+    at.switch_page("views/pipeline.py").run()
+    at.switch_page("views/designs.py").run()
+    assert at.segmented_control(key="td_design").value == "Unseen repo (repo folds)"
+
+
+def test_workflow_pages_hide_speaker_notes_until_toggled():
+    for view in WF_VIEWS:
+        at = _at(view)
+        assert not [i for i in at.info if i.value.startswith("**Speaker note:**")], view
+        at.sidebar.toggle[0].set_value(True).run()
+        assert [i for i in at.info if i.value.startswith("**Speaker note:**")], view
+
+
+@pytest.mark.parametrize("key", [s.key for s in workflow.STAGES if s.page])
+def test_each_stage_with_a_deep_dive_links_to_it(key):
+    at = _at("pipeline")
+    at.segmented_control(key="wf_stage").set_value(key).run()
+    assert workflow.stage(key).page in [link.proto.page for link in at.get("page_link")]
+
+
+@pytest.mark.parametrize("chapter,key,heading,stage", [
+    ("problem", "problem", "How it was built", "label"),
+    ("watch", "watch", "Known at time t", None),
+    ("why", "why", "How it was built", "explain"),
+    ("test_yourself", "test", "Two test designs", None),
+    ("transfer", "transfer", "Two test designs", None),
+    ("limits", "limits", "Validity checks", None),
+])
+def test_each_chapters_stage_link_opens_how_it_was_built(chapter, key, heading, stage):
+    at = _at(chapter)
+    at.button(key=f"stage_{key}").click().run()
+    assert not at.exception and at.title[0].value == heading
+    if stage:
+        assert at.session_state["wf_stage"] == stage
+        assert any(s.value.startswith(f"{workflow.STAGE_KEYS.index(stage) + 1}.") for s in at.subheader)
+
+
+def test_honest_limits_discloses_the_ci_bot_and_the_star_sorted_pools():
+    text = _text(_at("limits"))
+    assert workflow.bot_note(workflow.label_rates()) in text
+    assert workflow.pool_note(workflow.pool_bias()) in text

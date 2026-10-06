@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "check": "Ordering monotonicity",
+    "outcome": "pass",
+    "detail": "Review and comment timestamps come back in order on both pilot repos."
+  },
+  {
+    "id": 2,
+    "check": "Truncation",
+    "outcome": "pass",
+    "detail": "0.23% and 0.31% of PRs had a stream longer than the captured page, under the 1% threshold."
+  },
+  {
+    "id": 3,
+    "check": "Label-definition sensitivity",
+    "outcome": "measured",
+    "detail": "Five label definitions moved the in-stratum repo's slow rate by 3.7pp and the adversarial repo's by 8.4pp."
+  },
+  {
+    "id": 4,
+    "check": "Censoring / degeneracy",
+    "outcome": "expectation missed, not a stop",
+    "detail": "47.6% of litestream PRs were never reviewed within 30 days, above the blueprint's guessed 10–35%. Ruled not a stop: the positive rate, 55.4%, is near-balanced."
+  },
+  {
+    "id": 5,
+    "check": "Snapshot contamination",
+    "outcome": "measured",
+    "detail": "The final diff differs from the diff at open on 47.6% of litestream PRs and 29.4% of the adversarial repo's, so at-open values are rebuilt from the timeline and commits."
+  },
+  {
+    "id": 6,
+    "check": "Warm-up necessity",
+    "outcome": "measured",
+    "detail": "33.3% of early-window authors had a PR before the window, so every PR since each repo's start was collected."
+  },
+  {
+    "id": 7,
+    "check": "authorAssociation mutability",
+    "outcome": "resolved",
+    "detail": "35 of 88 litestream authors read CONTRIBUTOR on their first PR: the field is rewritten later, so author history is rebuilt by replay instead."
+  },
+  {
+    "id": 8,
+    "check": "Measured cost at the frozen query shape",
+    "outcome": "pass",
+    "detail": "A projected ~5 hours to collect 45 repos, well under the 24-hour line."
+  },
+  {
+    "id": 9,
+    "check": "Resume idempotency",
+    "outcome": "pass",
+    "detail": "A run killed and resumed collected the same 400 PRs as an uninterrupted one: 0 missing, 0 extra."
+  },
+  {
+    "id": 10,
+    "check": "Raw→parse conservation",
+    "outcome": "pass",
+    "detail": "Every collected PR parsed, with 0 checksum failures on either repo."
+  }
+]

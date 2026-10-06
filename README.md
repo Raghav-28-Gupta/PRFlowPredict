@@ -29,7 +29,9 @@ stalling.
 A six-chapter Streamlit walkthrough of the 2026 test period: how long PRs wait for a first
 review; one repo's PRs on a timeline, scored when they opened (click any to see why it scored as
 it did); a guess-the-stall game against the model; and the cold-start result, with a switch to the
-model that never saw the repo.
+model that never saw the repo. A second section, *How it was built*, walks the pipeline: a
+clickable map of the six stages, the data funnel, what the model could know when a PR opened, the
+two test designs, and every validity check.
 
 **[Open the live demo](https://prflowpredict-858tjrjzhhafzgblxb6bmo.streamlit.app/)**. It can take
 a few seconds to wake up. To run it locally instead:
@@ -108,4 +110,4 @@ each step overwrites.
 | Modelling | `splits.py` · `model.py` · `baseline.py` · `metrics.py` · `tune.py` · `experiment.py` · `tracking.py` · `report4.py` |
 | Interpretation | `attribution.py` · `errors.py` · `fairness.py` · `report6.py` · `fingerprint.py` · `report6b.py` |
 | Write-up | `writeup_figures.py` · `writeup_claims.py` |
-| Demo | `build_demo_data.py` · `demo/triage.py` · `demo/app.py` |
+| Demo | `build_demo_data.py` · `build_workflow_data.py` · `demo/app.py` · `demo/chapters.py` · `demo/stages.py` · `demo/triage.py` · `demo/workflow.py` · `demo/charts.py` · `demo/workflow_charts.py` · `demo/views/` |

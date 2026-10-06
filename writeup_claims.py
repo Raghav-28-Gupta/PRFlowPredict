@@ -45,6 +45,10 @@ P6B_TRANSFER = "data/phase6b_transfer.csv"
 P6B_INTERVENTION = "data/phase6b_intervention.csv"
 P6B_RELIANCE = "data/phase6b_reliance.csv"
 EXPERIMENTS = "data/experiments.csv"
+POOL = "data/cohort/candidate_pool.json"
+SEARCH_P0 = tuple(f"data/cohort/raw_search/search_{lang}_{lo}_{hi}_p0.json"
+                  for lang in ("Python", "TypeScript", "Go") for lo, hi in ((200, 800), (800, 3000), (3000, 15000)))
+CI_BOT_REPOS = ("kubernetes/autoscaler", "kubernetes-sigs/gateway-api-inference-extension")
 
 # Table rows parsed from generated documents. Kept out of f-strings: Python 3.11 and earlier
 # cannot parse a backslash inside an f-string's braces.
@@ -220,6 +224,24 @@ def _folds_below_baseline() -> int:
     return sum(r["auc_pr"] <= r["baseline_auc_pr"] for r in nlr)
 
 
+def _ci_bot_rates() -> str:
+    """The two repos whose first reviews mostly come from k8s-ci-robot, at their D5 slow rates."""
+    reps = {r["repo"]: r for r in json.loads(_text(KEPT))["repos"]}
+    a, b = (reps[r]["is_slow_d5"] for r in CI_BOT_REPOS)
+    return f"({a:.1%} and {b:.1%} under D5)"
+
+
+def _pool_share() -> str:
+    """Each search group's candidate pool against how many repos its search matched."""
+    pool = pd.DataFrame(json.loads(_text(POOL))).groupby("_cell").size()
+    matched = {}
+    for rel in SEARCH_P0:
+        _, lang, lo, hi, _ = Path(rel).stem.split("_")
+        matched[f"{lang}:{lo}-{hi}"] = json.loads(_text(rel))["data"]["search"]["repositoryCount"]
+    share = pool / pd.Series(matched)
+    return f"each group's {pool.iloc[0]} most-starred matches, between {share.min():.1%} and {share.max():.1%} of the group"
+
+
 def _nlr_b_fold_range() -> tuple[float, float]:
     v = [r["auc_pr"] for r in _runs() if r["scenario"] == "B" and r["featureset"] == "NO_LABEL_REPLAY"]
     return min(v), max(v)
@@ -288,6 +310,11 @@ CLAIMS: tuple[Claim, ...] = (
     Claim("nlr_b_fold_range", lambda: (lambda lo, hi: f"from {_f3(lo)} to {_f3(hi)}")(*_nlr_b_fold_range()),
           "from 0.507 to 0.965", (REPORT,), (P4_RUNS,)),
 
+    # --- limitations found while building the workflow view
+    Claim("ci_bot_rates", _ci_bot_rates, "(3.1% and 0.7% under D5)", (REPORT,), (KEPT,)),
+    Claim("pool_share", _pool_share,
+          "each group's 200 most-starred matches, between 1.3% and 20.6% of the group", (REPORT,), (POOL, *SEARCH_P0)),
+
     # --- Phase 6
     Claim("lr_share_a", lambda: f"{_share('A', fs.LABEL_REPLAY):.1%} in Scenario A",
           "60.9% in Scenario A", (REPORT,), (P6_IMP.format("A"),)),
@@ -344,6 +371,7 @@ REQUIRED_PHRASES: tuple[tuple[str, str], ...] = (
     (README, "python baseline.py"),
     (REPORT, "python baseline.py"),
     (REPORT, "rewrites `data/phase3_gate.json`"),
+    (REPORT, "not on the project's list of known bots"),
 )
 FORBIDDEN_PATTERNS: tuple[str, ...] = (
     r"fingerprinting (is|was) (supported|confirmed)",
