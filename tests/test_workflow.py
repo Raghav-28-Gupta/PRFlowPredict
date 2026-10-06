@@ -238,3 +238,95 @@ def test_fold_results_match_the_runs():
     for _, r in f.iterrows():
         nlr = b.query("featureset == 'NO_LABEL_REPLAY' and fold == @r.fold").iloc[0]
         assert r["without_history"] == nlr["auc_pr"] and r["baseline"] == nlr["baseline_auc_pr"]
+
+
+# ---------------------------------------------------------------------------
+# known at time t
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def check(prs):
+    return wf.trailing_check(prs)
+
+
+def _toy() -> pd.DataFrame:
+    """One repo; P0 opens at t. Hand-computed with the prior 0.5 and alpha 5:
+    P1 opened 10 days before, reviewed       -> counted (old enough), not slow
+    P2 opened 2 days before, reviewed 1 later -> counted (reviewed before t), not slow
+    P3 opened 1 day before, no review yet     -> not yet knowable; it later stalls
+    P4 opened 100 days before                 -> outside the 90-day window
+    resolvable: k=2, slow=0 -> (0 + 2.5) / 7;  naive: k=3, slow=1 -> (1 + 2.5) / 8.
+    The stored values of the others: P4 has an empty window (0.5); P1 counts P4, exactly 90 days
+    earlier; P2 counts P1; P3 counts P1 only, as P2's review lands exactly at P3's opening."""
+    t = pd.Timestamp("2026-05-01T00:00:00Z")
+    d = pd.Timedelta(days=1)
+    return pd.DataFrame({
+        "repo": ["r"] * 5, "pr_id": ["P4", "P1", "P2", "P3", "P0"], "number": [4, 1, 2, 3, 0],
+        "created_at": [t - 100 * d, t - 10 * d, t - 2 * d, t - d, t],
+        "first_review_at": [t - 99 * d, t - 9 * d, t - d, pd.NaT, pd.NaT],
+        "is_slow": [False, False, False, True, True],
+        "x__trailing_n": [0, 1, 1, 1, 2],
+        "x__trailing_90d_slow_rate": [0.5, 2.5 / 6, 2.5 / 6, 2.5 / 6, 2.5 / 7],
+    })
+
+
+def test_a_pr_counts_once_it_is_a_week_old_or_reviewed():
+    frame, s = wf.replay_at(_toy(), "r", "P0", prior_rate=0.5)
+    assert (s["k"], s["slow"], s["unknown"]) == (2, 0, 1)
+    assert s["rate"] == pytest.approx(2.5 / 7) and s["matches"]
+    status = frame.set_index("pr_id")["status"]
+    assert status.to_dict() == {"P4": wf.OLD, "P1": wf.COUNTED, "P2": wf.COUNTED, "P3": wf.UNKNOWN}
+    assert frame.set_index("pr_id").loc["P3", "lane"] == wf.UNKNOWN_LANE
+
+
+def test_the_naive_rule_counts_what_was_not_yet_knowable():
+    frame, s = wf.replay_at(_toy(), "r", "P0", rule="naive", prior_rate=0.5)
+    assert (s["k"], s["slow"]) == (3, 1) and s["rate"] == pytest.approx(3.5 / 8) and not s["matches"]
+    leaked = frame.set_index("pr_id").loc["P3"]
+    assert leaked["status"] == wf.LEAK and leaked["lane"] == wf.STALLED_LANE
+
+
+def test_the_vectorised_check_agrees_on_the_toy():
+    out = wf.trailing_check(_toy(), prior_rate=0.5).set_index("pr_id")
+    assert (out.loc["P0", "k"], out.loc["P0", "unknown"]) == (2, 1)
+    assert out["matches"].all()
+
+
+def test_the_prior_is_the_rate_of_an_empty_window(prs):
+    g = wf.prior(prs)
+    assert (prs.loc[prs["x__trailing_n"] == 0, "x__trailing_90d_slow_rate"] == g).all()
+
+
+def test_exact_repos_match_on_every_pr_and_include_the_default(check):
+    exact = wf.exact_repos(check)
+    assert "kdlbs/kandev" in exact
+    assert check[check["repo"].isin(exact)]["matches"].all()
+    assert not check[~check["repo"].isin(exact)].groupby("repo")["matches"].all().any()
+
+
+def test_replay_at_matches_the_stored_feature_on_every_pr_of_an_exact_repo(prs, check):
+    exact = wf.exact_repos(check)
+    repo = min(exact, key=lambda r: int((prs["repo"] == r).sum()))
+    g = wf.prior(prs)
+    for pid in prs.loc[prs["repo"] == repo, "pr_id"]:
+        assert wf.replay_at(prs, repo, pid, prior_rate=g)[1]["matches"], pid
+
+
+def test_replay_at_agrees_with_the_vectorised_check_across_repos(prs, check):
+    g = wf.prior(prs)
+    for _, r in check.sample(150, random_state=0).iterrows():
+        _, s = wf.replay_at(prs, r["repo"], r["pr_id"], prior_rate=g)
+        assert (s["k"], s["unknown"]) == (r["k"], r["unknown"]), r["pr_id"]
+        assert s["rate"] == pytest.approx(r["rate"], abs=1e-12)
+
+
+def test_the_default_pr_has_the_most_unknowable_neighbours(check):
+    pid = wf.default_pr(check, "kdlbs/kandev")
+    rows = check[check["repo"] == "kdlbs/kandev"].set_index("pr_id")
+    assert rows.loc[pid, "unknown"] == rows["unknown"].max() > 0
+
+
+def test_the_bundle_holds_everything_the_pages_read(prs):
+    b = wf.bundle(prs)
+    assert set(b) == {"stages", "gates", "groups", "repo_funnel", "pr_funnel", "pool_bias", "labels",
+                      "audits", "live", "prior", "check", "exact", "splits", "folds", "scenario_a", "verdict"}

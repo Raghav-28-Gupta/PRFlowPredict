@@ -435,3 +435,109 @@ def fold_results() -> pd.DataFrame:
                          "base_rate": list(full["base_rate"]), "model": list(full["auc_pr"]),
                          "without_history": list(nlr["auc_pr"]),
                          "baseline": list(full["baseline_auc_pr"])})
+
+
+# ---------------------------------------------------------------------------
+# known at time t: the trailing slow rate, re-derived from the extract
+# ---------------------------------------------------------------------------
+
+def prior(prs: pd.DataFrame) -> float:
+    """The shrinkage prior, read off the PRs whose 90-day window held no knowable outcome."""
+    empty = prs.loc[prs["x__trailing_n"] == 0, "x__trailing_90d_slow_rate"]
+    if empty.empty:
+        raise LookupError("no PR with an empty trailing window to read the prior from")
+    return float(empty.iloc[0])
+
+
+def shrunk(slow: int, k: int, prior_rate: float) -> float:
+    return (slow + ALPHA * prior_rate) / (k + ALPHA)
+
+
+def replay_at(prs: pd.DataFrame, repo: str, pr_id: str, rule: str = "resolvable",
+              prior_rate: float | None = None) -> tuple[pd.DataFrame, dict]:
+    """The repo's PRs opened in the 120 days before `pr_id`, each with its status at that moment,
+    and the trailing slow rate they give. `rule` is "resolvable" (the project's: a PR counts once
+    it is 168h old or reviewed) or "naive" (every earlier PR in the 90-day window)."""
+    rows = prs[prs["repo"] == repo].sort_values(["created_at", "pr_id"], kind="mergesort")
+    me = rows[rows["pr_id"] == pr_id].iloc[0]
+    t = me["created_at"]
+    before = rows[(rows["created_at"] < t) & (rows["created_at"] >= t - pd.Timedelta(days=TRAILING_DAYS + 30))]
+    window = before["created_at"] >= t - pd.Timedelta(days=TRAILING_DAYS)
+    knowable = (before["created_at"] <= t - pd.Timedelta(hours=THRESHOLD_H)) | (before["first_review_at"] < t)
+    counted = window & (knowable | (rule == "naive"))
+    status = pd.Series(OLD, index=before.index)
+    status[window & ~knowable] = LEAK if rule == "naive" else UNKNOWN
+    status[window & knowable] = COUNTED
+    lane = before["is_slow"].map({True: STALLED_LANE, False: FINE_LANE})
+    lane[status == UNKNOWN] = UNKNOWN_LANE
+    g = prior(prs) if prior_rate is None else prior_rate
+    k, slow = int(counted.sum()), int(before.loc[counted, "is_slow"].sum())
+    rate = shrunk(slow, k, g)
+    summary = {"t": t, "number": int(me["number"]), "k": k, "slow": slow, "prior": g, "rate": rate,
+               "unknown": int((window & ~knowable).sum()), "stored_k": int(me["x__trailing_n"]),
+               "stored_rate": float(me["x__trailing_90d_slow_rate"])}
+    summary["matches"] = k == summary["stored_k"] and abs(rate - summary["stored_rate"]) <= TOLERANCE
+    frame = before[["pr_id", "number", "created_at", "first_review_at", "is_slow"]].assign(status=status, lane=lane)
+    return frame.reset_index(drop=True), summary
+
+
+def trailing_check(prs: pd.DataFrame, prior_rate: float | None = None) -> pd.DataFrame:
+    """Every PR's trailing slow rate re-derived from the extract, beside the stored feature.
+    Per repo: PRs at least 168h old come from sorted positions and running sums; only the last
+    week's PRs are checked one by one for a review before t."""
+    g = prior(prs) if prior_rate is None else prior_rate
+    parts = []
+    for _, rows in prs.groupby("repo", sort=True):
+        rows = rows.sort_values(["created_at", "pr_id"], kind="mergesort")
+        c = rows["created_at"].reset_index(drop=True)
+        lo = c.searchsorted(c - pd.Timedelta(days=TRAILING_DAYS), side="left")
+        thr = c.searchsorted(c - pd.Timedelta(hours=THRESHOLD_H), side="right")
+        now = c.searchsorted(c, side="left")
+        slow = rows["is_slow"].astype(int).tolist()
+        cum = [0]
+        for s in slow:
+            cum.append(cum[-1] + s)
+        reviewed, opened = rows["first_review_at"].tolist(), c.tolist()
+        ks, slows, unknown = [], [], []
+        for i, t in enumerate(opened):
+            recent = [j for j in range(thr[i], now[i]) if reviewed[j] < t]   # NaT compares False
+            ks.append(int(thr[i] - lo[i]) + len(recent))
+            slows.append(cum[thr[i]] - cum[lo[i]] + sum(slow[j] for j in recent))
+            unknown.append(int(now[i] - thr[i]) - len(recent))
+        part = rows[["repo", "pr_id", "number", "created_at", "x__trailing_n", "x__trailing_90d_slow_rate"]].copy()
+        part["k"], part["slow"], part["unknown"] = ks, slows, unknown
+        part["rate"] = [shrunk(s, k, g) for s, k in zip(slows, ks)]
+        parts.append(part)
+    out = pd.concat(parts, ignore_index=True)
+    out["matches"] = ((out["k"] == out["x__trailing_n"])
+                      & ((out["rate"] - out["x__trailing_90d_slow_rate"]).abs() <= TOLERANCE))
+    return out
+
+
+def exact_repos(check: pd.DataFrame) -> list[str]:
+    """Repos where the re-derived rate equals the stored feature on every PR."""
+    ok = check.groupby("repo")["matches"].all()
+    return sorted(ok[ok].index)
+
+
+def default_pr(check: pd.DataFrame, repo: str) -> str:
+    """The repo's PR with the most earlier PRs whose outcome was not yet knowable (the earliest
+    on a tie): the moment the 7-day rule matters most."""
+    rows = check[check["repo"] == repo].sort_values(["unknown", "created_at"], ascending=[False, True],
+                                                     kind="mergesort")
+    return rows["pr_id"].iloc[0]
+
+
+# ---------------------------------------------------------------------------
+# everything the section shows, built once
+# ---------------------------------------------------------------------------
+
+def bundle(prs: pd.DataFrame) -> dict:
+    groups, table = feature_groups(), gates()
+    check = trailing_check(prs)
+    return {"stages": stage_table(badges(prs, groups), table), "gates": table, "groups": groups,
+            "repo_funnel": repo_funnel(), "pr_funnel": pr_funnel(), "pool_bias": pool_bias(),
+            "labels": label_rates(), "audits": audits(), "live": live_mismatches(),
+            "prior": prior(prs), "check": check, "exact": exact_repos(check),
+            "splits": split_rows(), "folds": fold_results(), "scenario_a": scenario_a(),
+            "verdict": verdict_6b()}
