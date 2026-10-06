@@ -61,6 +61,8 @@ class Context:
     notes: bool
     mode: str
     pages: list = field(default_factory=list)
+    wf: dict = field(default_factory=dict)              # workflow.bundle(), for the stage links and limits
+    wf_pages: list = field(default_factory=list)
 
 
 def _c() -> Context:
