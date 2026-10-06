@@ -1,0 +1,150 @@
+[
+  {
+    "feature": "created_hour_utc",
+    "group": "static"
+  },
+  {
+    "feature": "created_dayofweek",
+    "group": "static"
+  },
+  {
+    "feature": "is_weekend",
+    "group": "static"
+  },
+  {
+    "feature": "is_cross_repository",
+    "group": "static"
+  },
+  {
+    "feature": "author_account_age_days",
+    "group": "static"
+  },
+  {
+    "feature": "body_len",
+    "group": "static"
+  },
+  {
+    "feature": "has_body",
+    "group": "static"
+  },
+  {
+    "feature": "is_draft_at_open",
+    "group": "reconstructed"
+  },
+  {
+    "feature": "n_labels_at_open",
+    "group": "reconstructed"
+  },
+  {
+    "feature": "title_len_at_open",
+    "group": "reconstructed"
+  },
+  {
+    "feature": "base_is_default",
+    "group": "reconstructed"
+  },
+  {
+    "feature": "reviewer_requested_at_open",
+    "group": "static"
+  },
+  {
+    "feature": "n_reviewers_requested_at_open",
+    "group": "static"
+  },
+  {
+    "feature": "requested_team_at_open",
+    "group": "static"
+  },
+  {
+    "feature": "additions_at_open",
+    "group": "reconstructed"
+  },
+  {
+    "feature": "deletions_at_open",
+    "group": "reconstructed"
+  },
+  {
+    "feature": "n_commits_at_open",
+    "group": "reconstructed"
+  },
+  {
+    "feature": "open_backlog_at_t",
+    "group": "replay"
+  },
+  {
+    "feature": "prs_opened_trailing_7d",
+    "group": "replay"
+  },
+  {
+    "feature": "trailing_90d_slow_rate",
+    "group": "replay"
+  },
+  {
+    "feature": "trailing_n",
+    "group": "replay"
+  },
+  {
+    "feature": "is_first_pr_here",
+    "group": "replay"
+  },
+  {
+    "feature": "n_prior_prs_here",
+    "group": "replay"
+  },
+  {
+    "feature": "n_prior_merged_here",
+    "group": "replay"
+  },
+  {
+    "feature": "prior_merge_rate_here",
+    "group": "replay"
+  },
+  {
+    "feature": "days_since_first_pr_here",
+    "group": "replay"
+  },
+  {
+    "feature": "author_prior_slow_rate_here",
+    "group": "replay"
+  },
+  {
+    "feature": "author_prior_n",
+    "group": "replay"
+  },
+  {
+    "feature": "n_assignable_users",
+    "group": "snapshot"
+  },
+  {
+    "feature": "n_mentionable_users",
+    "group": "snapshot"
+  },
+  {
+    "feature": "owner_is_org",
+    "group": "snapshot"
+  },
+  {
+    "feature": "has_codeowners",
+    "group": "snapshot"
+  },
+  {
+    "feature": "has_pr_template",
+    "group": "snapshot"
+  },
+  {
+    "feature": "has_contributing",
+    "group": "snapshot"
+  },
+  {
+    "feature": "n_ci_workflows",
+    "group": "snapshot"
+  },
+  {
+    "feature": "language_dominant",
+    "group": "snapshot"
+  },
+  {
+    "feature": "repo_age_days_at_open",
+    "group": "static"
+  }
+]
